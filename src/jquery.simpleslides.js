@@ -1,35 +1,37 @@
 /**
-*	@name						Simple Slides
-*	@descripton					Turns the elements inside a div into slides
-*							with assigned transitions, handles image loading, and can act 
-*							as a slideshow. 
-*	@version					0.1.0
-*	@requires					Jquery 1.4+
+* @name             Simple Slides
+* @descripton       Turns the elements inside a div into slides with assigned
+*                   transitions, handles image loading, and can act as a
+*                   slideshow.
+* @version          0.1.1
+* @requires         Jquery 1.4+
 *
-*	@author						Ben Gullotti
-*	@author-email					ben@bengullotti.com
+* @author           Ben Gullotti
+* @author-email     ben@bengullotti.com
+* @author-site      https://github.com/YodaPop
 *
-*	@license					MIT License - http://www.opensource.org/licenses/mit-license.php
+* @license          MIT License -
+*                   http://www.opensource.org/licenses/mit-license.php
 */
 
 (function($) {
-	
-	//helpers
-	
+
+	// helpers
+
 	var helpers = {
 
-		appendImage : function(jQel,img) {
-			if(typeof img === 'string') {
-				jQel.append('<img src="'+img+'" />');
+		appendImage : function( jQobj, img ) {
+			if( typeof img === 'string' ) {
+				jQobj.append('<img src="'+img+'" />');
 			}else if(typeof img === 'object' && typeof img.src === 'string') {
-				$('<img/>',img).appendTo(jQel);
+				$('<img/>',img).appendTo(jQobj);
 			}else {
 				$.error('Simple Slides Error: invalid image. Specify '+
 					'src as a string or object property.');
 			}
 		},
 
-		getAttributes : function(el) {
+		getAttributes : function( el ) {
 			var attributes = {};
 			for (var i=0, attrs=el.attributes, l=attrs.length; i<l; i++){
 				attributes[attrs.item(i).nodeName] = attrs.item(i).nodeValue;
@@ -38,39 +40,40 @@
 			return attributes;
 		},
 
-		wrapElement : function(jQel) {
-			var wrapper = $('<div></div>').insertAfter(jQel);
-			jQel.remove();
-			wrapper.append(jQel);
+		wrapElement : function( jQobj ) {
+			var wrapper = $('<div></div>').insertAfter(jQobj);
+			jQobj.remove();
+			wrapper.append(jQobj);
 			wrapper.css({
-				'width':'100%',
-				'height':'100%',
-				'position':'relative',
-				'top':'0px',
-				'left':'0px',
-				'display':'block',
-				'z-index':0
+				'width'     :   '100%',
+				'height'    :   '100%',
+				'position'  :   'relative',
+				'top'       :   '0px',
+				'left'      :   '0px',
+				'display'   :   'block',
+				'z-index'   :   0
 			});
-			jQel.css({
-				'display':'block',
-				'position':'relative',
-				'top':'0px',
-				'left':'0px'
+			jQobj.css({
+				'display'   :   'block',
+				'position'  :   'relative',
+				'top'       :   '0px',
+				'left'      :   '0px'
 			});
 
 			return wrapper;
 		}
 	};
 
-	//filters
-	
+	// filters applied before method calls
+
 	var filters = {
 
-		methods : function(method) {
-			//filter out the uninitialized
+		all : function( method ) {
+			// filter out the uninitialized
 			var filtered = this.filter(function() {
-				if($(this).data('SimpleSlides.global') === null) {
-					$.error('Simple Slides Error: method "'+method+'" was called on an element '+
+				if( $(this).data('SimpleSlides.global' ) === null) {
+					$.error('Simple Slides Error: method "' + method +
+						'" was called on an element ' +
 					'which has not initialized the plugin');
 
 					return false;
@@ -78,73 +81,110 @@
 
 				return true;
 			});
-			
-			//check filtered before proceeding
-			if(filtered.length === 0) {return false;}
 
-			//apply filter to specific methods
-			if(typeof filters[method] === 'function') {
-				filters[method].apply(filtered, Array.prototype.slice.call( arguments, 1 ));
-			}else {
-				methods[method].apply(filtered, Array.prototype.slice.call( arguments, 1 ));
-			}
-		},
-
-		goTo : function(slide) {
-			//check slide
-			if(typeof slide === 'undefined') {
-				$.error('Simple Slides Error: method goTo expects second argument the '+
-						'slide #.');
+			// check filtered before proceeding
+			if( filtered.length === 0 ) {
 				return false;
 			}
-			//convert to integer
-			if(typeof slide !== 'number') {slide = parseInt(slide);}
+
+			// apply filter to specific methods
+			if( typeof filters[method] === 'function' ) {
+				filters[method].apply(filtered,
+					Array.prototype.slice.call( arguments, 1 ));
+			}else {
+				methods[method].apply(filtered,
+					Array.prototype.slice.call( arguments, 1 ));
+			}
+
+			// return the jQuery object to keep the method chainable
+			return this;
+		},
+
+		goTo : function( slide ) {
+			// check slide
+			if( typeof slide === 'undefined' ) {
+				$.error('Simple Slides Error: method goTo expects second ' +
+						'argument the slide #. No argument given.');
+
+				return false;
+			}
+
+			// convert to integer
+			if( typeof slide !== 'number' ) {
+				slide = parseInt(slide);
+			}
 
 			var filtered = this.filter(function() {
-				//global settings
+				// global settings
 				var settings = $(this).data('SimpleSlides.global');
 				var state = settings.state.getState();
-				//check load or pause
-				if(state === 'load' || state === 'pause-in' || state === 'pause-tr') {return false;}
-				//check overflow
-				if(!settings.overflow) {
-				       if(state === 'play-tr' || state === 'stop-tr') {return false;}
-				}else {
-					//check queue
-					if(settings.transitions.length >= settings.maxOverflow || settings.transitions.length+1 >= settings.total) {return false;}
-				}
-				//check current slide
-				if(slide === settings.slide) {
-					$.error('Simple Slides Error: method goTo() called for current slide #'+slide);
+
+				// check load or pause
+				if( state === 'load' || state === 'pause-in' ||
+					state === 'pause-tr' ) {
 
 					return false;
 				}
-				//check slide range
-				if(slide < 0 || slide >= settings.total) {
-					$.error('Simple Slides Error: slide parameter ('+slide+') passed to goTo() '+
-					'must be a number greater than 0 and less than the total slides ('+settings.total+')');
-					
+				// check overflow
+				if( !settings.overflow ) {
+					if( state === 'play-tr' || state === 'stop-tr' ) {
+
+						return false;
+					}
+				}else {
+					// check queue
+					if( settings.transitions.length >= settings.maxOverflow ||
+						settings.transitions.length+1 >= settings.total ) {
+
+						return false;
+					}
+				}
+
+				// check current slide
+				if( slide === settings.slide ) {
+					$.error('Simple Slides Error: method goTo() called for ' +
+						'current slide #' + slide);
+
 					return false;
 				}
-				//check if slide is currently in use
-				if($(this).children().eq(slide).css('visibility') === 'visible') {return false;}
-				//check reset play
-				if(state === 'play-in') {settings.timer.reset();}
+
+				// check slide range
+				if( slide < 0 || slide >= settings.total ) {
+					$.error('Simple Slides Error: slide parameter (' + slide +
+						') passed to goTo() must be a number greater than 0 ' +
+						'and less than the total slides (' + settings.total +
+						')');
+
+					return false;
+				}
+				// check if slide is currently in use
+				if( $(this).children().eq(slide).css('visibility') ===
+					'visible' ) {
+
+					return false;
+				}
+				// check reset play
+				if( state === 'play-in' ) {
+					settings.timer.reset();
+				}
 
 				return true;
 			});
 
 			//check filtered before proceeding
-			if(filtered.length === 0) {return false;}
+			if( filtered.length === 0 ) {
+
+				return false;
+			}
 
 			//Go To
-			methods.goTo.call(filtered,slide);
+			methods.goTo.call( filtered, slide );
 		}
 	};
 
-	//classes
-	
-	var SimpleSlide = function (id,index) {
+	// classes
+
+	var SimpleSlide = function ( id, index ) {
 		this.id = id;
 		this.index = index;
 	};
@@ -152,48 +192,61 @@
 	SimpleSlide.prototype = {
 
 		getContainer : function () {
-			return $('.simpleSlides'+this.id);
+			return $('.simpleSlides' + this.id);
 		},
-		
+
 		getWrapper : function () {
-			return $('.simpleSlides'+this.id).children().eq(this.index);
+			return $('.simpleSlides' + this.id).children().eq(this.index);
 		},
 
 		getSlide : function () {
-			return $('.simpleSlides'+this.id).children().eq(this.index).children().first();
+			return $('.simpleSlides' + this.id).children().eq(this.index)
+				.children().first();
 		}
-	};
-	
-	//state management object
+	},
 
-	var State = function() {
-		this.isPlaying = false;
-		this.isPaused = false;
-		this.isTransit = false;
-		this.isLoading = false;
+	// state management object
+
+	State = function() {
+		this.isPlaying  = false;
+		this.isPaused   = false;
+		this.isTransit  = false;
+		this.isLoading  = false;
 	};
 
 	State.prototype = {
-		
+
 		getState : function() {
-			//state 0: loading
-			if(this.isLoading) {return 'load';}
-			//state 1: playing between transitions
-			if(this.isPlaying && !this.isPaused && !this.isTransit) {return 'play-in';}
-			//state 2: playing during transitions
-			if(this.isPlaying && !this.isPaused) {return 'play-tr';}
-			//state 3: paused between transitions
-			if(this.isPlaying && this.isPaused && !this.isTransit) {return 'pause-in';}
-			//state 4: paused during transitions
-			if(this.isPlaying && this.isPaused) {return 'pause-tr';}
-			//state 5: stopped between transitions
-			if(!this.isTransit) {return 'stop-in';}
-			//state 6: stopped during transitions
+			// state 0: loading
+			if( this.isLoading ) {
+				return 'load';
+			}
+			// state 1: playing between transitions
+			if( this.isPlaying && !this.isPaused && !this.isTransit ) {
+				return 'play-in';
+			}
+			// state 2: playing during transitions
+			if( this.isPlaying && !this.isPaused ) {
+				return 'play-tr';
+			}
+			// state 3: paused between transitions
+			if( this.isPlaying && this.isPaused && !this.isTransit ) {
+				return 'pause-in';
+			}
+			// state 4: paused during transitions
+			if( this.isPlaying && this.isPaused ) {
+				return 'pause-tr';
+			}
+			// state 5: stopped between transitions
+			if( !this.isTransit ) {
+				return 'stop-in';
+			}
+			// state 6: stopped during transitions
 			return 'stop-tr';
 		},
 
-		setState : function(state) {
-			switch(state) {
+		setState : function( state ) {
+			switch( state ) {
 				case 'load':
 					this.isLoading = true;
 					break;
@@ -222,7 +275,7 @@
 		}
 	};
 
-	//loader object
+	// loader object
 
 	var Loader = function() {
 		this.loader = false;
@@ -235,7 +288,9 @@
 	Loader.prototype = {
 
 		showLoader : function() {
-			if(!this.loader) {return false;}
+			if( !this.loader ) {
+				return false;
+			}
 			this.loader.getWrapper().css('visibility','hidden');
 			var op = parseFloat(this.loader.getSlide().css('opacity'));
 			var duration = this.duration * (1 - op);
@@ -245,7 +300,9 @@
 		},
 
 		hideLoader : function() {
-			if(!this.loader) {return false;}
+			if( !this.loader ) {
+				return false;
+			}
 			this.loader.getSlide().stop();
 			var op = parseFloat(this.loader.getSlide().css('opacity'));
 			var duration = this.duration * op;
@@ -317,17 +374,16 @@
 	//timer object
 	
 	var Timer = function() {
-		var parent = this;
 
 		function _counting() {
-			parent.count+=parent.increment;
-			if(parent.count >= parent.duration) {
-				var callback = parent.callback;
+			this.count+=this.increment;
+			if(this.count >= this.duration) {
+				var callback = this.callback;
 				//reset timer
-				parent.reset();
+				this.reset();
 				if(callback) {callback();}
 			}else {
-				parent.counting();
+				this.counting();
 			}
 		}
 
@@ -340,7 +396,8 @@
 		this.count = 0;
 
 		this.counting = function() {
-			this.timeout = setTimeout(function(){_counting();},this.increment);
+			var parent = this;
+			this.timeout = setTimeout(function(){_counting.call(parent);},this.increment);
 		};
 	};
 
@@ -490,127 +547,208 @@
 
 		var presetTransitions = {
 
-			fade : function(settings) {
+			fade : function( settings ) {
 				var op = parseFloat(settings.slideB.css('opacity'));
-				if(op === 1) {settings.slideB.css({opacity:0});}
-				if(settings.percent > 0) {settings.slideB.css({opacity:settings.percent});}
+				// reset opacity to 0
+				if ( op === 1 ) {
+					settings.slideB.css( {opacity:0} );
+				}
+				// set the opacity based on the percentage
+				if ( settings.percent > 0 ) {
+					settings.slideB.css( {opacity:settings.percent} );
+				}
+				// animage to full opacity
 				settings.slideB.animate({
 					opacity: 1
 				}, settings.duration);
 			},
 
-			slideLeft : function(settings) {
-				var mv = (settings.percent===0) ? settings.container.innerWidth() : parseInt(settings.slideB.css('left'));
-				settings.slideB.css('left',mv+'px');
-				settings.slideB.animate({
-					left: '-='+mv
+			slideLeft : function( settings ) {
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.container.innerWidth();
+				}else {
+					var mv = parseInt(settings.slideB.css('left'));
+				}
+				// start slide B to the right
+				settings.slideB.css('left', mv + 'px')
+				// animate slide B to slide in moving left
+				.animate({
+					left: '-=' + mv
 				}, settings.duration);
-				if(settings.slideA) {
-					settings.slideA.css('left',(mv-settings.container.innerWidth())+'px');
-					settings.slideA.animate({
-						left: '-='+mv
+				// check for slide A
+				if( settings.slideA ) {
+					// start slide A on to the left of slide B
+					settings.slideA.css('left',
+						( mv - settings.container.innerWidth() ) + 'px')
+					// animate slide A to slide out moving left
+					.animate({
+						left: '-=' + mv
 					}, settings.duration);
 				}
 			},
 
-			slideLeftOver : function(settings) {
-				var mv = (settings.percent===0) ? settings.container.innerWidth() : parseInt(settings.slideB.css('left'));
-				settings.slideB.css('left',mv+'px');
-				settings.slideB.animate({
-					left: '-='+mv
+			slideLeftOver : function( settings ) {
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.container.innerWidth();
+				}else {
+					var mv = parseInt(settings.slideB.css('left'));
+				}
+				// start slide B to the right
+				settings.slideB.css('left', mv + 'px')
+				// animate slide B to slide in moving left
+				.animate({
+					left: '-=' + mv
 				}, settings.duration);
 			},
 
-			slideRight : function(settings) {
-				var mv = (settings.percent===0) ? settings.slideB.innerWidth() : Math.abs(parseInt(settings.slideB.css('left')));
-				settings.slideB.css('left',-mv+'px');
-				settings.slideB.animate({
-					left: '+='+mv
+			slideRight : function( settings ) {
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.slideB.innerWidth();
+				}else {
+					var mv = Math.abs(parseInt(settings.slideB.css('left')));
+				}
+				// start slide B to the left
+				settings.slideB.css('left',-mv+'px')
+				// animate slide B to slide in moving right
+				.animate({
+					left: '+=' + mv
 				}, settings.duration);
-				if(settings.slideA) {
-					settings.slideA.css('left',(-mv+settings.slideB.outerWidth())+'px');
-					settings.slideA.animate({
-						left: '+='+mv
+				// check for slide A
+				if ( settings.slideA ) {
+					// start slide A to the right of slide B
+					settings.slideA.css('left',
+						( -mv+settings.slideB.outerWidth() ) + 'px')
+					// animate slide A to move out to the right
+					.animate({
+						left: '+=' + mv
 					}, settings.duration);
 				}
 			},
 
 			slideRightOver : function(settings) {
-				var mv = (settings.percent===0) ? settings.slideB.innerWidth() : Math.abs(parseInt(settings.slideB.css('left')));
-				settings.slideB.css('left',-mv+'px');
-				settings.slideB.animate({
-					left: '+='+mv
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.slideB.innerWidth();
+				}else {
+					var mv = Math.abs(parseInt(settings.slideB.css('left')));
+				}
+				// start slide B to the left
+				settings.slideB.css('left',-mv+'px')
+				// animate slide B to slide in moving right
+				.animate({
+					left: '+=' + mv
 				}, settings.duration);
 			},
 
 			slideUp : function(settings) {
-				var mv = (settings.percent===0) ? settings.container.innerHeight() : 
-						parseInt(settings.container.innerHeight() * (1 - settings.percent));
-				settings.slideB.css('top',mv+'px');
-				settings.slideB.animate({
-					top: '-='+mv
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.container.innerHeight();
+				}else {
+					var mv = parseInt(settings.container.innerHeight() *
+						( 1 - settings.percent ));
+				}
+				// start slide B at the top
+				settings.slideB.css('top', mv + 'px')
+				// animate slide B to slide in moving down
+				.animate({
+					top: '-=' + mv
 				}, settings.duration);
-				if(settings.slideA) {
-					settings.slideA.css('top',(mv-settings.container.innerHeight())+'px');
-					settings.slideA.animate({
-						top: '-='+mv
+				// check for slide A
+				if( settings.slideA ) {
+					// start slide A at the bottom of slide B
+					settings.slideA.css('top',
+						( mv-settings.container.innerHeight() ) + 'px')
+					// animate slide A to move down and out
+					.animate({
+						top: '-=' + mv
 					}, settings.duration);
 				}
 			},
 
 			slideUpOver : function(settings) {
-				var mv = (settings.percent===0) ? settings.container.innerHeight() : 
-						parseInt(settings.container.innerHeight() * (1 - settings.percent));
-				settings.slideB.css('top',mv+'px');
-				settings.slideB.animate({
-					top: '-='+mv
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.container.innerHeight();
+				}else {
+					var mv = parseInt(settings.container.innerHeight() *
+						( 1 - settings.percent ));
+				}
+				// start slide B at the top
+				settings.slideB.css('top', mv + 'px')
+				// animate slide B to slide in moving down
+				.animate({
+					top: '-=' + mv
 				}, settings.duration);
 			},
 
 			slideDown : function(settings) {
-				var mv = (settings.percent===0) ? settings.slideB.innerHeight() : 
-						parseInt(settings.slideB.innerHeight() * (1 - settings.percent));
-				settings.slideB.css('top',-mv+'px');
-				settings.slideB.animate({
-					top: '+='+mv
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.slideB.innerHeight();
+				}else {
+					var mv = parseInt(settings.slideB.innerHeight() *
+						( 1 - settings.percent ));
+				}
+				// start slide B at the bottom
+				settings.slideB.css('top', -mv + 'px')
+				// animate slide B to slide in moving up
+				.animate({
+					top: '+=' + mv
 				}, settings.duration);
-				if(settings.slideA) {
-					settings.slideA.css('top',(-mv+settings.slideA.outerHeight())+'px');
-					settings.slideA.animate({
-						top: '+='+mv
+				// check for slide A
+				if ( settings.slideA ) {
+					// start slide A on top of slide B
+					settings.slideA.css('top',
+						( -mv+settings.slideA.outerHeight()) + 'px')
+					// animate slide A to slide up and out
+					.animate({
+						top: '+=' + mv
 					}, settings.duration);
 				}
 			},
 
 			slideDownOver : function(settings) {
-				var mv = (settings.percent===0) ? settings.slideB.innerHeight() : 
-						parseInt(settings.slideB.innerHeight() * (1 - settings.percent));
-				settings.slideB.css('top',-mv+'px');
-				settings.slideB.animate({
-					top: '+='+mv
+				// set the amount to move based on the percentage
+				if ( settings.percent === 0 ) {
+					var mv = settings.slideB.innerHeight();
+				}else {
+					var mv = parseInt(settings.slideB.innerHeight() *
+						( 1 - settings.percent ));
+				}
+				// start slide B at the bottom
+				settings.slideB.css('top', -mv + 'px')
+				// animate slide B to slide in moving up
+				.animate({
+					top: '+=' + mv
 				}, settings.duration);
 			}
 
 		};
 		
 		if(typeof animate === 'string') {
-			//if overflow is set, Over transitions must be implemented
-			if(settings.overflow === true) {
+			// if overflow is set, Over transitions must be implemented
+			if ( settings.overflow === true ) {
 				var index = animate.indexOf('Over');
-				if(index === -1) {
+				if ( index === -1 ) {
 					animate += 'Over';
 				}
 			}
-			if(typeof presetTransitions[animate] === 'function') {
+			if ( typeof presetTransitions[animate] === 'function' ) {
+				// apply the standard transition
 				presetTransitions[animate](settings);
 			}else {
+				// default to fade in
 				presetTransitions.fade(settings);
 			}
-		}else if(typeof animate === 'function') {
+		}else if ( typeof animate === 'function' ) {
 			animate(settings);
 		}else {
-			$.error('Simple Slides Error: invalid transition. Transitions must '+
-					'be of type string or function.');
+			$.error('Simple Slides Error: invalid transition. Transitions ' +
+					'must be of type string or function.');
 		}
 	};
 
@@ -619,8 +757,7 @@
 	var methods = {
 
 		init : function( options ) {
-			
-			//setup
+			// hide the slides that are outside the container
 			$(this).css('overflow','hidden');
 
 			// Create some defaults, extending them with any options that were provided
@@ -639,112 +776,114 @@
 				'overflow' : false,
 				'maxOverflow' : 5
 			}, options,
-			//private settings
+			// private settings
 			{
-				'id' : Math.round((Math.random() - 0.00001) * 100000),
+				'id' : Math.round( (Math.random() - 0.00001) * 100000 ),
 				'total' : 0,
 				'state' : new State(),
 				'timer' : new Timer()
 			});
-			//transition queue
+			// transition queue
 			settings.transitions = [new Transition(settings.timer)];
 			
 			return this.each(function(){
-				
-				//append json
-				if(settings.json) {
-					for(var i=0;i<settings.json.length;i++) {
+				// append json
+				if ( settings.json ) {
+					for( var i = 0; i < settings.json.length; i++ ) {
 						helpers.appendImage($(this),settings.json[i]);
 					}
 				}
-				//delete json
+				// delete json
 				delete settings.json;
 
-				//set total slides
+				// set total slides
 				settings.total = $(this).children().length;
 
-				//search for a loader image with class name "simpleSlides.loader"
+				// search for a loader image with class name
+				// "simpleSlides.loader"
 				if($(this).children('.simpleSlides.loader').length === 0) {
-					if(settings.loader) {
+					if ( settings.loader ) {
 						//add loader class
-						if(typeof settings.loader === 'string') {
+						if ( typeof settings.loader === 'string' ) {
 							settings.loader = {
-								'img':settings.loader,
-								'class':'.simpleSlides.loader'
+								'img'   :   settings.loader,
+								'class' :   '.simpleSlides.loader'
 							};
-						}else if(typeof settings.loader === 'object') {
+						}else if ( typeof settings.loader === 'object' ) {
 							var className = ' .simpleSlides.loader';
-							if(typeof settings.loader.class === 'string') {
+							if ( typeof settings.loader.class === 'string' ) {
 								settings.loader.class += className;
 							}else {
 								settings.loader.class = className;
 							}
 						}
-						//append loader
+						// append loader
 						helpers.appendImage($(this),settings.loader);
 					}
 				}else {
 					settings.total -= 1;
 				}
 
-				//add loader object
+				// add loader object
 				settings.loader = new Loader();
 
-				//check start slide
-				if(settings.slide >= settings.total || settings.slide < 0) {
+				// check start slide
+				if ( settings.slide >= settings.total || settings.slide < 0 ) {
 					settings.slide = 0;
 				}
-				
-				//stack & wrap children
+
+				// stack & wrap children
 				var wrapper = helpers.wrapElement($(this).children().first());
-				//data loaded
+				// data loaded
 				wrapper.data('SimpleSlides.loaded',false);
-				//stack properties
+				// stack properties
 				var heightInc = wrapper.height();
 				var height = 0;
-				//wrap remaining elements
+				// wrap remaining elements
 				$(this).children().not(':eq(0)').each(function() {
-					height+=heightInc;
+					height += heightInc;
 					wrapper = helpers.wrapElement($(this));
-					wrapper.css('top',-height+'px');
-					wrapper.data('SimpleSlides.loaded',false);
+					wrapper.css('top', -height + 'px');
+					wrapper.data('SimpleSlides.loaded', false);
 				});
-				//hide all but the starting slide
-				$(this).children().not(':eq('+settings.slide+')').css('visibility','hidden');
+				// hide all but the starting slide
+				$(this).children().not(':eq(' + settings.slide + ')')
+					.css('visibility','hidden');
 
-				//set the class id
-				$(this).addClass('simpleSlides'+settings.id);
-				//save persistent data
+				// set the class id
+				$(this).addClass('simpleSlides' + settings.id);
+				// save persistent data
 				$(this).data('SimpleSlides.global', settings);
-				
-				//auto play
-				if(settings.autostart) {
+
+				// auto play
+				if ( settings.autostart ) {
 					methods.play.call($(this));
 				}
 			});
 		},
-		
+
 		play : function() {
-			
+
 			this.each(function(){
-				//current jQuery object
+				// current jQuery object
 				var container = $(this);
-				//retrieve global settings
+				// retrieve global settings
 				var settings = container.data('SimpleSlides.global');
 				var state = settings.state.getState();
-				//set play state
+				// set play state
 				settings.state.setState('play');
-				//play states
-				switch(state) {
-					case 'pause-in': //paused between transitions
+				// play states
+				switch ( state ) {
+					case 'pause-in': // paused between transitions
 						settings.timer.start();
 						break;
-					case 'pause-tr': //paused during transitions
-						for(var i=0;i<settings.transitions.length;i++) {
+					case 'pause-tr': // paused during transitions
+						for ( var i = 0; i < settings.transitions.length;
+							  i++ ) {
 							settings.transitions[i].start();
 						}
 						break;
-					case 'stop-in': //stopped between transitions
+					case 'stop-in': // stopped between transitions
 						settings.timer.start(settings.duration,function(){
 							methods.next.call(container);
 						});
@@ -752,21 +891,22 @@
 				}
 			});
 		},
-			
+
 		pause : function() {
-			
+
 			this.each(function(){
-				//retrieve global settings
+				// retrieve global settings
 				var settings = $(this).data('SimpleSlides.global');
 				var state = settings.state.getState();
 
-				//enter pause
-				if(state !== 'load' && state !== 'stop-in' && state !== 'stop-tr') {
+				// enter pause
+				if ( state !== 'load' && state !== 'stop-in' &&
+					 state !== 'stop-tr') {
 					settings.state.setState('pause');
 				}
 
-				switch(state) {
-					case 'play-in': //playing between transitions
+				switch ( state ) {
+					case 'play-in': // playing between transitions
 						settings.timer.stop();
 						break;
 					case 'play-tr': // playing during transitions
@@ -777,111 +917,115 @@
 				}
 			});
 		},
-		 
+
 		stop : function() {
-			
+
 			this.each(function(){
-				//global settings
+				// global settings
 				var settings = $(this).data('SimpleSlides.global');
 				var state = settings.state.getState();
-				//check pause
-				if(state === 'pause-in' || state === 'pause-tr') {return false;}
-				//check play
-				if(state === 'play-in') {settings.timer.reset();}
-				//set state
+				// check pause
+				if ( state === 'pause-in' || state === 'pause-tr' ) {
+					return false;
+				}
+				// check play
+				if ( state === 'play-in' ) {
+					settings.timer.reset();
+				}
+				// set state
 				settings.state.setState('stop');
 			});
 		},
 
 		previous: function() {
-			
+
 			this.each(function(){
-				//retrieve global settings
+				// retrieve global settings
 				var settings = $(this).data('SimpleSlides.global');
-				//inrement slide
-				var previous = (settings.slide===0) ? settings.total - 1 :
-									settings.slide - 1;
-									
-				//filter goTo
+				// inrement slide
+				var previous = ( settings.slide === 0 ) ? settings.total - 1 :
+								settings.slide - 1;
+				// filter goTo
 				filters.goTo.call($(this),previous);
 			});
 		},
 
 		next: function() {
-			
+
 			this.each(function(){
-				//retrieve global settings
+				// retrieve global settings
 				var settings = $(this).data('SimpleSlides.global');
-				//inrement slide
-				var next = (settings.total===settings.slide+1) ? 0 :
-									settings.slide + 1;
-									
+				// inrement slide
+				var next = ( settings.total===settings.slide+1 ) ? 0 :
+							settings.slide + 1;
 				//filter goTo
 				filters.goTo.call($(this),next);
 			});
 		},
-			
-		goTo : function(slide) {
-			
+
+		goTo : function( slide ) {
+
 			this.each(function(){
-				//retrieve global settings
+				// retrieve global settings
 				var settings = $(this).data('SimpleSlides.global');
 				var state = settings.state.getState();
-				//get slide objects
+				// get slide objects
 				var ssA = new SimpleSlide(settings.id,settings.slide);
 				var ssB = new SimpleSlide(settings.id,slide);
-				//load slide
-				if(!ssB.getWrapper().data('SimpleSlides.loaded')) {
+				// load slide
+				if ( !ssB.getWrapper().data('SimpleSlides.loaded') ) {
 					settings.loader.load(ssB);
 					return false;
 				}
-
-				//transition settings
-				var stransition=(typeof settings.transition[slide]==='undefined') ? settings.transition.default:
-							settings.transition[slide];
-				if(typeof stransition === 'string' || typeof stransition === 'function') {
+				// transition settings
+				var stransition = ( typeof settings.transition[slide] ===
+								'undefined' ) ? settings.transition.default :
+								settings.transition[slide];
+				if ( typeof stransition === 'string' ||
+					 typeof stransition === 'function' ) {
 					stransition = {
-						'animation':stransition,
-						'duration':settings.transition.default.duration
+						'animation'     :   stransition,
+						'duration'      :   settings.transition.default.duration
 					};
-				}else if(typeof stransition === 'object') {
-					if(typeof stransition.duration === 'undefined') {
+				}else if ( typeof stransition === 'object' ) {
+					if ( typeof stransition.duration === 'undefined' ) {
 						stransition.duration = settings.transition.default.duration;
 					}
-					if(typeof stransition.animation === 'undefined') {
+					if ( typeof stransition.animation === 'undefined' ) {
 						stransition.animation = settings.transition.default.animation;
 					}
 				}
-				//queue transition
-				if(state === 'play-tr' || state === 'stop-tr') {
+				// queue transition
+				if ( state === 'play-tr' || state === 'stop-tr' ) {
 					var ntransition=new Transition();
 					settings.transitions.push(ntransition);
 				}
-				//set current slide
+				// set current slide
 				settings.slide = slide;
-				//enter transition state
+				// enter transition state
 				settings.state.setState('tr');
-				//start transition
+				// start transition
 				settings.transitions[settings.transitions.length-1].start(
 					{
-						'ssA':ssA,
-						'ssB':ssB,
-						'animation':stransition.animation,
-						'duration':stransition.duration,
-						'queue':settings.transitions.length,
-						'overflow':settings.overflow,
-						'callback':function(){
-							//finish transitions
-							if(settings.slide === ssB.getWrapper().index()) {
-								//exit transition
+						'ssA'       :   ssA,
+						'ssB'       :   ssB,
+						'animation' :   stransition.animation,
+						'duration'  :   stransition.duration,
+						'queue'     :   settings.transitions.length,
+						'overflow'  :   settings.overflow,
+						'callback'  :   function(){
+							// finish transitions
+							if ( settings.slide === ssB.getWrapper().index() ) {
+								// exit transition
 								settings.state.setState('no-tr');
-								//reset transition queue
-								for(var i=0; i < settings.transitions.length; i++) {
+								// reset transition queue
+								for( var i = 0;
+									 i < settings.transitions.length; i++ ) {
 									settings.transitions[i].reset();
 								}
 								settings.transitions.length = 1;
-								//play next slide
-								if(settings.state.getState() === 'play-in') {
+								// play next slide
+								if( settings.state.getState() === 'play-in' ) {
 									settings.state.setState('stop');
 									methods.play.call(ssB.getContainer());
 								}
@@ -893,37 +1037,37 @@
 		},
 
 		destroy : function() {
-			
+
 			this.each(function(){
-				//retrieve global settings
+				// retrieve global settings
 				var settings = $(this).data('SimpleSlides.global');
-				//reset transitions 
-				for(var i=0; i < settings.transitions.length; i++) {
+				// reset transitions 
+				for( var i = 0; i < settings.transitions.length; i++) {
 					settings.transitions[i].reset();
 				}
-				//reset global timer
+				// reset global timer
 				settings.timer.reset();
-				//clear child data
+				// clear child data
 				$(this).children().each(function() {
 					$(this).removeData('SimpleSlides.loaded');
 				});
-				//clear global data
+				// clear global data
 				$(this).removeData('SimpleSlides.global');
 			});
 		}
 	};
-	
+
 	//jQuery plugin
 
 	$.fn.simpleSlides = function( method ) {
-		//call the methods from the methods variable
+		// call the methods from the methods variable
 		if ( methods[method] ) {
-			filters.methods.apply( this, arguments );
-			return this;
+			return filters.all.apply( this, arguments );
 		} else if ( typeof method === 'object' || ! method ) {
 			return methods.init.apply( this, arguments );
 		} else {
-			$.error( 'Method ' +  method + ' does not exist on jQuery.simpleSlides' );
+			$.error( 'Method ' +  method +
+				' does not exist on jQuery.simpleSlides' );
 		}
 	};
 
