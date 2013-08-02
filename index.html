@@ -1,0 +1,116 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta http-equiv="cache-control" content="no-cache">
+	<meta http-equiv="pragma" content="no-cache">
+	<meta name="robots" content="none">
+	<meta name="language" content="en" />
+
+<style type="text/css">
+body {
+	background:#1f1f1f;
+}
+img {
+	margin:0;
+}
+#container1, #slide5 {
+	width:480px;
+	height:320px;
+	margin:auto auto 10px;
+}
+#controls {
+	width:480px;
+	height:30px;
+	margin:auto auto 10px;
+}
+.slide-div {
+	width:824px;
+	height:122px;
+	background:white;
+	cursor:pointer;
+}
+#trace-log {
+	width:828px;
+	margin:auto;
+	color:red;
+	font-weight:bold;
+}
+#goTo {
+	width:20px;
+}
+</style>
+
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.4.1/jquery.min.js"></script>
+	<script src="src/jquery.simpleslides.js" type="text/javascript"></script>
+
+	<title>Simple Slides</title>
+
+</head>
+<body>
+
+	<div id="container1">
+		<img src="http://www.tcvillas.com/grace_bay_beach_house/grace_bay_beach
+			_house_beach.jpg"/>
+		<img src="http://www.tnetnoc.com/hotelphotos/731/116731/2631759-Barcelo-Tucancun-Beach-All-Inclusive-Hotel-Exterior-1-DEF.jpg"/>
+		<img src="http://thereafterish.files.wordpress.com/2012/10/thereafterish_beaches-of-hawaii_sherwood-forest-beach_11.jpg"/>
+		<img src="http://barbados.org/blog/wp-content/uploads/miami-beach-barbados.jpg"/>
+		<div id="slide5">
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+			<div class="slide-div"></div>
+		</div>
+		<img src="http://www.rwongphoto.com/RW3285_web.jpg"/>
+		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bora-Pearl-Beach-Resort-Spa-Hotel-Exterior-4.jpg"/>
+		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bora-Pearl-Beach-Resort-Spa-Pool-25.jpg"/>
+		<img src="http://aieseclife.org/wp-content/uploads/2012/02/Miami-Beach.jpg"/>
+	</div>
+	<div id="controls">
+		<input type="button" value="Play" onClick="$('#container1').simpleSlides('play')" />
+		<input type="button" value="Pause" onClick="$('#container1').simpleSlides('pause')" />
+		<input type="button" value="Stop" onClick="$('#container1').simpleSlides('stop')" />
+		<input type="button" value="<<" onClick="$('#container1').simpleSlides('previous')" />
+		<input type="button" value=">>" onClick="$('#container1').simpleSlides('next')" />
+		<input type="button" value="Go To:" onClick="$('#container1').simpleSlides('goTo',$('#goTo').val())" />
+		<input id="goTo" type="text" value="" />
+	</div>
+	<div id="trace-log"></div>
+
+<script type="text/javascript">
+/*<![CDATA[*/
+$('#container1').simpleSlides({
+	'transition':{
+		1 : 'slideRight',
+		2 : 'slideLeft',
+		3 : 'slideUp',
+		4 : function(settings) {
+			var slides = settings.slideB.children();
+			var slideHeight = Math.round(settings.container.innerHeight() / slides.length);
+			var mv = (settings.percent===0) ? slideHeight : slideHeight - Math.round(slideHeight * settings.percent);
+			slides.each(function() {
+				$(this).css({
+					'height':(slideHeight - mv) + 'px',
+					'margin-bottom':mv + 'px'
+				});
+				$(this).animate({
+					'height': '+='+mv,
+					'margin-bottom':'-='+mv
+				}, settings.duration);
+			});
+		}
+	},
+	'autostart':true,
+	'overflow':true
+});
+/*]]>*/
+</script>
+
+</body>
+</html>
