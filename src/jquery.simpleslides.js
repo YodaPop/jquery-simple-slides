@@ -3,8 +3,11 @@
 * @descripton       Turns the elements inside a div into slides with assigned
 *                   transitions, handles image loading, and can act as a
 *                   slideshow.
-* @version          0.1.1
-* @requires         Jquery 1.4+
+* @version          0.2.1
+* @requires         Jquery 1.6+
+*                   https://github.com/YodaPop/jquery-simple-timer
+*                   https://github.com/YodaPop/jquery-simple-image-load
+*                   https://github.com/moappi/jquery.json2html
 *
 * @author           Ben Gullotti
 * @author-email     ben@bengullotti.com
@@ -16,21 +19,667 @@
 
 (function($) {
 
-	// helpers
+	// private
 
-	var helpers = {
+	/**
+	 * An object containing the public properties used for the plugin's default
+	 * settings.
+	 *
+	 * @property _settings
+	 * @type Object
+	 * @private
+	 **/
+	var _settings = {
+		json        :   false,
+		loader      :   false,
+		slide       :   0,
+		transitions :   {
+			onDefault   :   {
+				duration            :   0,
+				animation           :   'none'
+			}
+		},
+		duration    :   1000,
+		autostart   :   false,
+		overlay     :   false,
+		maxOverlay  :   5
+	};
 
-		appendImage : function( jQobj, img ) {
-			if( typeof img === 'string' ) {
-				jQobj.append('<img src="'+img+'" />');
-			}else if(typeof img === 'object' && typeof img.src === 'string') {
-				$('<img/>',img).appendTo(jQobj);
-			}else {
-				$.error('Simple Slides Error: invalid image. Specify '+
-					'src as a string or object property.');
+	// classes
+
+	/**
+	 * A class used to track the state of the slideshow
+	 *
+	 * @class State
+	 * @constructor
+	 **/
+	var State = function() {
+		// defaults
+		this.isPlaying          = false;
+		this.isPaused           = false;
+		this.isTransitioning    = false;
+		this.isLoading          = false;
+	};
+
+	State.prototype = {
+
+		/**
+		 * Get the state of the slides.
+		 *
+		 * @class State
+		 * @method getState
+		 * @return {String} The state of the slides
+		 **/
+		getState : function() {
+			// state 0: loading
+			if( this.isLoading ) {
+				return 'loading';
+			}
+			// state 1: playing between transitions
+			if( this.isPlaying && !this.isPaused && !this.isTransitioning ) {
+				return 'play-interval';
+			}
+			// state 2: playing during transitions
+			if( this.isPlaying && !this.isPaused ) {
+				return 'play-transition';
+			}
+			// state 3: paused between transitions
+			if( this.isPlaying && this.isPaused && !this.isTransitioning ) {
+				return 'pause-interval';
+			}
+			// state 4: paused during transitions
+			if( this.isPlaying && this.isPaused ) {
+				return 'pause-transition';
+			}
+			// state 5: stopped between transitions
+			if( !this.isTransitioning ) {
+				return 'stop-interval';
+			}
+			// state 6: stopped during transitions
+			return 'stop-transition';
+		},
+
+		/**
+		 * Set the state of the slides.
+		 *
+		 * @class State
+		 * @method setState
+		 * @param {String} state The state of the slides
+		 **/
+		setState : function( state ) {
+			switch( state ) {
+				case 'loading':
+					this.isLoading = true;
+					break;
+				case 'not-loading':
+					this.isLoading = false;
+					break;
+				case 'play':
+					this.isPlaying = true;
+					this.isPaused = false;
+					break;
+				case 'pause':
+					this.isPlaying = true;
+					this.isPaused = true;
+					break;
+				case 'stop':
+					this.isPlaying = false;
+					this.isPaused = false;
+					break;
+				case 'transitioning':
+					this.isTransitioning = true;
+					break;
+				case 'not-transitioning':
+					this.isTransitioning = false;
+					break;
+			}
+		}
+	};
+
+	/**
+	 * A class used to encapsulate common calls to the slides, wrappers, and the
+	 * container.
+	 *
+	 * @class SimpleSlide
+	 * @param {Object} The slide wrapper as a jQuery object
+	 * @constructor
+	 **/
+	var SimpleSlide = function ( jQwrapper ) {
+		this.jQwrapper = jQwrapper;
+	};
+
+	SimpleSlide.prototype = {
+
+		/**
+		 * Gets the index of the slide wrapper
+		 *
+		 * @method getIndex
+		 * @return {Number} A number representing the index of the slide wrapper
+		 * relative to its sibling slides.
+		 **/
+		getIndex : function() {
+			return this.jQwrapper.index();
+		},
+
+		/**
+		 * Gets the container of the slide wrapper
+		 *
+		 * @method getContainer
+		 * @return {Object} The container jQuery object
+		 **/
+		getContainer : function () {
+			return this.jQwrapper.parent();
+		},
+
+		/**
+		 * Gets the wrapper of the slide
+		 *
+		 * @method getWrapper
+		 * @return {Object} The slide wrapper jQuery object
+		 **/
+		getWrapper : function () {
+			return this.jQwrapper;
+		},
+
+		/**
+		 * Gets the slide
+		 *
+		 * @method getSlide
+		 * @return {Object} The slide jQuery object
+		 **/
+		getSlide : function () {
+			return this.jQwrapper.children().first();
+		}
+	};
+
+	/**
+	 * Handles the creation, retrieval, and method calls for an array of
+	 * transitions.
+	 *
+	 * @class Queue
+	 * @param {Object} transitions The transitions object set when the
+	 * plugin was initialized.
+	 * @constructor
+	 **/
+	var Queue = function ( transitions ) {
+		this._transitions = transitions;
+		this._queue = [];
+	};
+
+	Queue.prototype = {
+
+		/**
+		 * Calls the method passed as a string on all of the transitions in the
+		 * queue.
+		 *
+		 * @method _call
+		 * @param {Mixed} method The name of the method
+		 * @private
+		 **/
+		_call : function ( method ) {
+			for ( var i = 0; i < this._queue.length; i++ ) {
+				this._queue[i][method]();
 			}
 		},
 
+		/**
+		 * Adds a transition to the queue based on the string or object given.
+		 * If no string is given, the default transition is used.
+		 *
+		 * @method add
+		 * @param {Mixed} name The name or index of the transition
+		 * @param {Object} settings The transitions settings
+		 * @return {Object} The Queue object
+		 * @chainable
+		 **/
+		add : function ( name, settings ) {
+			// add queue setting
+			$.extend(settings, {
+				queue   :   this._queue.length + 1
+			});
+			// merge settings
+			settings = $.extend({}, this._transitions.
+				getSettings(settings.slide, name), settings);
+			// new Transition
+			var transition = new Transition(settings);
+			// add the transition settings to the queue
+			this._queue.push(transition);
+
+			return this;
+		},
+
+		/**
+		 * Clears the queue of all transitions.
+		 *
+		 * @method clear
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		clear : function () {
+			this._queue.length = 0;
+
+			return this;
+		},
+
+		/**
+		 * Starts all of the transitions in the queue.
+		 *
+		 * @method start
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		start : function () {
+			this._call('start');
+
+			return this;
+		},
+
+		/**
+		 * Stops all of the transitions in the queue.
+		 *
+		 * @method stop
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		stop : function () {
+			this._call('stop');
+
+			return this;
+		},
+
+		/**
+		 * Resets all of the transitions in the queue.
+		 *
+		 * @method reset
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		reset : function () {
+			this._call('reset');
+
+			return this;
+		},
+
+	};
+
+	/**
+	 * Handles the transition settings object and the creation of transitions
+	 * based on those settings. Transition settings are key -> value
+	 * pairs. The keys represent the name of the transition such as "onDefault",
+	 * "onNext", and "onPrevious". The values represent the transition and timer
+	 * settings.
+	 *
+	 * @class TransitionSettings
+	 * @param {Object} transitions The transition settings object passed when
+	 * the plugin is initialized.
+	 * @constructor
+	 **/
+	var Transitions = function ( transitions ) {
+		// set onDefault settings
+		this._ts = {};
+		this._ts.onDefault = _settings.transitions.onDefault;
+		// initialize the transition settings
+		this._init(transitions);
+	};
+
+	Transitions.prototype = {
+
+		/**
+		 * Initializes the Queue by setting the default transition along with
+		 * the transitions passed using the transitions property when the plugin
+		 * is initialized.
+		 *
+		 * @method init
+		 * @param {Mixed} transition The name of the transition or an object
+		 * with key transition names/indexes and value transition settings
+		 * @private
+		 **/
+		_init : function ( transitions ) {
+			if ( typeof transitions === 'object' ) {
+				// set the onDefault transition settings
+				if ( transitions['animation'] || transitions['duration'] ) {
+					this.add('onDefault', transitions);
+				}else {
+					// add all transitions
+					for ( transition in transitions ) {
+						this.add(transition, transitions[transition]);
+					}
+				}
+			}else if ( typeof transitions === 'string' ) {
+				// set the onDefault animation setting
+				this._ts.onDefault.animation = transitions;
+			}
+		},
+
+		/**
+		 * Retrieves the transition settings of the given name. If the name or
+		 * the index of the transition settings does not exist, the "onDefault"
+		 * transition settings are returned.
+		 *
+		 * @method getSettings
+		 * @param {Number} slide The slide index
+		 * @param {String} animation The name of the animation.
+		 * @return {Object} An object containing the transition settings
+		 **/
+		getSettings : function ( slide, animation ) {
+			// override animation
+			if ( this._ts[animation] ) {
+				if ( animation == 'onDefault' || animation == 'onNext' ||
+					 animation == 'onPrevious' ) {
+					if ( this._ts[slide] ) {
+						// slide specific settings
+						return this._ts[slide];
+					}
+				}
+				return this._ts[animation];
+			}
+			// no override
+			if ( this._ts[slide] ) {
+				// slide specific settings
+				return this._ts[slide];
+			}else {
+				// default settings
+				return this._ts.onDefault;
+			}
+		},
+
+		/**
+		 * Adds a transition to the transition settings object based on the
+		 * name and settings given. If the transition name already exists, the
+		 * settings for that transition will be overridden.
+		 *
+		 * @method add
+		 * @param {Mixed} name The name or index of the transition
+		 * @param {Object} settings The transition settings
+		 * @return {Object} The TransitionSettings object
+		 * @chainable
+		 **/
+		add : function ( name, settings ) {
+			// default settings
+			this._ts[name] = $.extend({},_settings.transitions.onDefault);
+			// extend over
+			this._ts[name] = helpers.extendOver(this._ts[name], settings);
+
+			return this;
+		},
+
+		/**
+		 * Clears all transitions except for the "onDefault" transition.
+		 *
+		 * @method clear
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		clear : function () {
+			// get default
+			var onDefault = this._ts.onDefault;
+			// clear the object
+			this._ts = {};
+			// add the default
+			this._ts['onDefault'] = onDefault;
+
+			return this;
+		},
+
+	};
+
+	/**
+	 * A class that handles a transition between 2 slides. Settings may include
+	 * settings for the SimpleTimer plugin.
+	 *
+	 * @class Transition
+	 * @constructor
+	 **/
+	var Transition = function( options ) {
+		// default settings
+		this.settings = {
+			ssA         :   false,
+			ssB         :   false,
+			animation   :   'none',
+			queue       :   1,
+			overlay     :   false,
+		};
+		// update
+		this.update(options);
+	};
+
+	Transition.prototype = {
+
+		/**
+		 * Updates the object's animation property.
+		 *
+		 * @class Transition
+		 * @method setAnimation
+		 * @param {Mixed} animation A string or function.
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		setAnimation : function( animation ) {
+			// Simple Slides settings
+			var settings = ssA.getContainer().data('SimpleSlides.settings');
+			// apply animation to settings
+			this.settings.animation = options;
+		},
+
+		/**
+		 * Updates the object's settings. Settings may include settings for the
+		 * Simple Timer plugin.
+		 *
+		 * @class Transition
+		 * @method update
+		 * @param {Mixed} options A string, function, or object. A string or
+		 * function will be used to set an animation. An object will be used to
+		 * override the current settings.
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		update : function( options ) {
+			// update the transition animation
+			if ( typeof animation === 'string' ||
+				 typeof animation === 'function' ) {
+				this.setAnimation(options);
+				return this;
+			}
+			// apply transition settings
+			$.extend(this.settings, options);
+			// simple timer settings
+			var settingsTimer = helpers.extendOver(
+				$.simpleTimer('getDefaultSettings'),
+				this.settings);
+			// update the timer on slide A
+			if ( !this.settings.ssA.getWrapper().
+				 data('SimpleTimer.settings') ) {
+				this.settings.ssA.getWrapper().simpleTimer(settingsTimer);
+			}else {
+				this.settings.ssA.getWrapper().
+					simpleTimer('update', settingsTimer);
+			}
+
+			return this;
+		},
+
+		/**
+		 * Start the transition
+		 *
+		 * @class Transition
+		 * @method start
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		start : function() {
+			// check if the transition has already been started
+			if ( this.settings.ssA.getWrapper().simpleTimer('getTiming') ) {
+				return false;
+			}
+
+			/**
+			 * Collect the animation settings to be passed to the animation
+			 * function
+			*/
+			// get the percentage
+			var pc = this.settings.ssA.getWrapper().simpleTimer('getPercent');
+			// calculate the duration based on the percentage
+			if ( pc === 0 ) {
+				var pDuration = this.settings.duration;
+			}else {
+				var pDuration = this.settings.duration * (1 - pc);
+			}
+			// create settings
+			var settings = {
+				container   :   this.settings.ssA.getContainer(),
+				slideA      :   this.settings.ssA.getSlide(),
+				slideB      :   this.settings.ssB.getSlide(),
+				duration    :   pDuration,
+				percent     :   pc,
+				overlay     :   this.overlay
+			};
+			// start transition
+			Transition.animation(this.settings.animation, settings);
+
+			// queue index
+			this.settings.ssB.getWrapper().css('z-index',this.settings.queue);
+			// display slide B
+			this.settings.ssB.getWrapper().css('visibility','visible');
+			// start timer
+			this.settings.ssA.getWrapper().simpleTimer('start');
+
+			return this;
+		},
+
+		/**
+		 * Stop the transition
+		 *
+		 * @class Transition
+		 * @method stop
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		stop : function() {
+			// stop timer
+			this.settings.ssA.getWrapper().simpleTimer('stop');
+			// stop all jQuery animation
+			this.settings.ssA.getWrapper().find('*').stop(true);
+			this.settings.ssB.getWrapper().find('*').stop(true);
+
+			return this;
+		},
+
+		/**
+		 * Reset the transition
+		 *
+		 * @class Transition
+		 * @method reset
+		 * @return {Object} The Transition object
+		 * @chainable
+		 **/
+		reset : function() {
+			// stop transition
+			this.stop();
+			// reset timer
+			this.settings.ssA.getWrapper().simpleTimer('reset');
+			// reset slides
+			this.settings.ssA.getSlide().css({
+				'top':'0px',
+				'left':'0px'
+			});
+			this.settings.ssB.getSlide().css({
+				'top':'0px',
+				'left':'0px'
+			});
+			this.settings.ssA.getWrapper().css({
+				'visibility':'hidden',
+				'z-index':0
+			});
+			this.settings.ssB.getWrapper().css('z-index',0);
+			//properties
+			this.settings.ssA = false;
+			this.settings.ssB = false;
+			this.settings.animation = 'none';
+			this.settings.duration = 1000;
+			this.settings.queue = 1;
+			this.settings.overlay = false;
+			this.settings.callback = false;
+		}
+
+	};
+
+	/**
+	 * static methods used to handle any added transitions or any transition
+	 * passed in as a function. The only built-in "transition" is no transition
+	 * (none).
+	 */
+	Transition.transitions = {
+
+		none : function( settings ) {
+			// set slide B to show
+			settings.slideB.css('visibility', 'visible');
+			// set slide A to hidden
+			settings.slideA.css('visibility', 'hidden');
+		},
+
+	}
+
+	Transition.animation = function( animate, settings ) {
+		if(typeof animate === 'string') {
+			// if overlay is set, "Over" transitions must be implemented
+			if ( settings.overlay === true ) {
+				var index = animate.indexOf('Over');
+				if ( index === -1 ) {
+					animate += 'Over';
+				}
+			}
+			if ( typeof Transition.transitions[animate] === 'function' ) {
+				// apply the added transition
+				Transition.transitions[animate](settings);
+			}else {
+				// default to no transition
+				Transition.transitions.none(settings);
+			}
+		}else if ( typeof animate === 'function' ) {
+			animate(settings);
+		}else {
+			$.error('Simple Slides Error: invalid transition. Transitions ' +
+					'must be of type string or function.');
+		}
+	};
+
+	/**
+	 * Helper functions used privately by the plugin for common, simple tasks
+	 */
+	var helpers = {
+
+		/**
+		 * Adds the properties of the options object that are also defined in
+		 * the target object to the target object. Null values are ignored.
+		 *
+		 * @method helpers.extendOver
+		 * @param {Object} target The target object
+		 * @param {Object} options The options used to override the properties
+		 * of the target object
+		 * @return {Object} The new object
+		 * @private
+		 **/
+		extendOver : function(target, options) {
+			for ( prop in options ) {
+				if ( typeof target[prop] !== 'undefined' &&
+					 typeof options[prop] !== 'null' ) {
+					// add the property to the target
+					target[prop] = options[prop];
+				}
+			}
+
+			return target;
+		},
+
+		/**
+		 * Get the attributes of a DOM element
+		 *
+		 * @method helpers.getAttributes
+		 * @param {Object} el The DOM element
+		 * @return {Object} An object with key-value pairs representing the
+		 * attributes of the DOM element.
+		 * @private
+		 **/
 		getAttributes : function( el ) {
 			var attributes = {};
 			for (var i=0, attrs=el.attributes, l=attrs.length; i<l; i++){
@@ -40,6 +689,14 @@
 			return attributes;
 		},
 
+		/**
+		 * Wrap the jQuery object inside of a DIV element.
+		 *
+		 * @method helpers.wrapElement
+		 * @param {Object} jQobj The jQuery object
+		 * @return {Object} The new wrapper jQuery object
+		 * @private
+		 **/
 		wrapElement : function( jQobj ) {
 			var wrapper = $('<div></div>').insertAfter(jQobj);
 			jQobj.remove();
@@ -62,16 +719,54 @@
 
 			return wrapper;
 		}
-	};
+	},
 
-	// filters applied before method calls
+	// public
 
-	var filters = {
+	/**
+	 * Filters applied before method calls.
+	 */
+	filters = {
 
-		all : function( method ) {
+		/**
+		 * A filter applied before all get methods except defaultSettings are
+		 * called.
+		 *
+		 * @method filters.get
+		 * @param {Object} method The get method
+		 * @return {Mixed} The get method if it exists, otherwise false.
+		 **/
+		get : function( method ) {
+			// get default settings
+			if ( method == 'defaultSettings' ) {
+				return get.defaultSettings();
+			}
+			// no elements were selected
+			if ( this.length === 0 ) {
+				return false;
+			}
+			// call get method
+			if ( get[method] ) {
+				return get[method].apply( this,
+					Array.prototype.slice.call(arguments, 1) );
+			}else {
+				return false;
+			}
+		},
+
+		/**
+		 * A filter applied before all methods are called. The filter ensures
+		 * that all of the jQuery objects selected were initialized.
+		 *
+		 * @method filters.methods
+		 * @param {Object} method The method about to be filtered
+		 * @return {Object} The jQuery object from which the method was called
+		 * @chainable
+		 **/
+		methods : function( method ) {
 			// filter out the uninitialized
 			var filtered = this.filter(function() {
-				if( $(this).data('SimpleSlides.global' ) === null) {
+				if( $(this).data('SimpleSlides.settings' ) === null) {
 					$.error('Simple Slides Error: method "' + method +
 						'" was called on an element ' +
 					'which has not initialized the plugin');
@@ -100,11 +795,19 @@
 			return this;
 		},
 
-		goTo : function( slide ) {
+		/**
+		 * A filter applied before the goTo method is called. The filter
+		 * checks to make sure the object is ready to goto the given slide.
+		 *
+		 * @method filters.start
+		 * @param {Number} slide The index of the slide to go to
+		 * @chainable
+		 **/
+		goTo : function( slide, animation ) {
 			// check slide
 			if( typeof slide === 'undefined' ) {
 				$.error('Simple Slides Error: method goTo expects second ' +
-						'argument the slide #. No argument given.');
+					'argument the slide #. No argument given.');
 
 				return false;
 			}
@@ -116,56 +819,43 @@
 
 			var filtered = this.filter(function() {
 				// global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				var state = settings.state.getState();
 
 				// check load or pause
-				if( state === 'load' || state === 'pause-in' ||
-					state === 'pause-tr' ) {
-
+				if( state === 'loading' || state === 'pause-interval' ||
+					state === 'pause-transition' ) {
 					return false;
 				}
-				// check overflow
-				if( !settings.overflow ) {
-					if( state === 'play-tr' || state === 'stop-tr' ) {
-
+				// check overlay
+				if( !settings.overlay ) {
+					if ( state === 'play-transition' ||
+						 state === 'stop-transition' ) {
 						return false;
 					}
 				}else {
 					// check queue
-					if( settings.transitions.length >= settings.maxOverflow ||
-						settings.transitions.length+1 >= settings.total ) {
-
+					if( settings.queue.length >= settings.maxOverlay ||
+						settings.queue.length+1 >= settings.total ) {
 						return false;
 					}
 				}
-
 				// check current slide
 				if( slide === settings.slide ) {
-					$.error('Simple Slides Error: method goTo() called for ' +
-						'current slide #' + slide);
-
 					return false;
 				}
-
 				// check slide range
 				if( slide < 0 || slide >= settings.total ) {
 					$.error('Simple Slides Error: slide parameter (' + slide +
 						') passed to goTo() must be a number greater than 0 ' +
 						'and less than the total slides (' + settings.total +
 						')');
-
 					return false;
 				}
 				// check if slide is currently in use
 				if( $(this).children().eq(slide).css('visibility') ===
 					'visible' ) {
-
 					return false;
-				}
-				// check reset play
-				if( state === 'play-in' ) {
-					settings.timer.reset();
 				}
 
 				return true;
@@ -178,654 +868,274 @@
 			}
 
 			//Go To
-			methods.goTo.call( filtered, slide );
-		}
-	};
-
-	// classes
-
-	var SimpleSlide = function ( id, index ) {
-		this.id = id;
-		this.index = index;
-	};
-
-	SimpleSlide.prototype = {
-
-		getContainer : function () {
-			return $('.simpleSlides' + this.id);
-		},
-
-		getWrapper : function () {
-			return $('.simpleSlides' + this.id).children().eq(this.index);
-		},
-
-		getSlide : function () {
-			return $('.simpleSlides' + this.id).children().eq(this.index)
-				.children().first();
+			methods.goTo.call( filtered, slide, animation );
 		}
 	},
 
-	// state management object
+	/**
+	 * Setter functions called using
+	 * $(selector).simpleTimer('set' + methodName) or
+	 * $.simpleSlides('get' + methodName)
+	 * WARNING: These methods are not chainable.
+	 */
+	set = {
 
-	State = function() {
-		this.isPlaying  = false;
-		this.isPaused   = false;
-		this.isTransit  = false;
-		this.isLoading  = false;
-	};
-
-	State.prototype = {
-
-		getState : function() {
-			// state 0: loading
-			if( this.isLoading ) {
-				return 'load';
-			}
-			// state 1: playing between transitions
-			if( this.isPlaying && !this.isPaused && !this.isTransit ) {
-				return 'play-in';
-			}
-			// state 2: playing during transitions
-			if( this.isPlaying && !this.isPaused ) {
-				return 'play-tr';
-			}
-			// state 3: paused between transitions
-			if( this.isPlaying && this.isPaused && !this.isTransit ) {
-				return 'pause-in';
-			}
-			// state 4: paused during transitions
-			if( this.isPlaying && this.isPaused ) {
-				return 'pause-tr';
-			}
-			// state 5: stopped between transitions
-			if( !this.isTransit ) {
-				return 'stop-in';
-			}
-			// state 6: stopped during transitions
-			return 'stop-tr';
+		/**
+		 * Set the private default settings object used to initialize the
+		 * public settings of the plugin.
+		 *
+		 * @method set.defaultSettings
+		 * @param {Object} options The options used to override the default
+		 * settings
+		 **/
+		defaultSettings : function( options ) {
+			$.extend(_settings, options);
 		},
 
-		setState : function( state ) {
-			switch( state ) {
-				case 'load':
-					this.isLoading = true;
-					break;
-				case 'noload':
-					this.isLoading = false;
-					break;
-				case 'play':
-					this.isPlaying = true;
-					this.isPaused = false;
-					break;
-				case 'pause':
-					this.isPlaying = true;
-					this.isPaused = true;
-					break;
-				case 'stop':
-					this.isPlaying = false;
-					this.isPaused = false;
-					break;
-				case 'tr':
-					this.isTransit = true;
-					break;
-				case 'no-tr':
-					this.isTransit = false;
-					break;
-			}
-		}
-	};
-
-	// loader object
-
-	var Loader = function() {
-		this.loader = false;
-		this.slide = false;
-		this.total = 0;
-		this.count = 0;
-		this.duration = 500;
-	};
-
-	Loader.prototype = {
-
-		showLoader : function() {
-			if( !this.loader ) {
-				return false;
-			}
-			this.loader.getWrapper().css('visibility','hidden');
-			var op = parseFloat(this.loader.getSlide().css('opacity'));
-			var duration = this.duration * (1 - op);
-			this.loader.getSlide().animate({
-				opacity: 1
-			}, duration);
+		/**
+		 * Add or override named transitions with an object. The objects keys
+		 * represent the name of the transition and it's value is the function
+		 * that will be used for the transition.
+		 *
+		 * @method set.transitions
+		 * @param {Object} transitions The object containing the transition(s)
+		 * names and functions
+		 */
+		transitions : function ( transitions ) {
+			$.extend(Transition.transitions, transitions);
 		},
 
-		hideLoader : function() {
-			if( !this.loader ) {
-				return false;
-			}
-			this.loader.getSlide().stop();
-			var op = parseFloat(this.loader.getSlide().css('opacity'));
-			var duration = this.duration * op;
-			var wrapper = this.loader.getWrapper();
-			this.loader.getSlide().stop().animate({
-				opacity: 0
-			},duration,function(){
-				wrapper.css('visibility','hidden');
-			});
+	},
+
+	/**
+	 * Getter functions called using
+	 * $(selector).simpleTimer('get' + methodName) or
+	 * $.simpleTimer('get' + methodName)
+	 * WARNING: These methods are not chainable.
+	 */
+	get = {
+
+		/**
+		 * Get the private default settings object used to initialize the
+		 * public settings of the plugin.
+		 *
+		 * @method get.defaultSettings
+		 * @return {Object} The default settings object
+		 **/
+		defaultSettings : function() {
+			// apply to each element
+			return _settings;
 		},
 
-		loadImage : function(jQimg) {
-			this.showLoader();
-			//get attributes
-			var attributes = helpers.getAttributes(jQimg.get(0));
-			//replace image with an empty image
-			var imgPlaceHolder = $('<img/>');
-			jQimg.replaceWith(imgPlaceHolder);
-
-			//load image
-			var parent = this;
-			imgPlaceHolder.load(function(){
-				parent.count++;
-				if(parent.count === parent.total) {
-					parent.reset();
-					parent.hideLoader();
-					parent.slide.getWrapper().data('SimpleSlides.loaded', true);
-					parent.slide.getContainer().data('SimpleSlides.global').state.setState('noload');
-					methods.goTo.call(parent.slide.getContainer(),parent.slide.index);
+		/**
+		 * Get a specific setting passed in as a string.
+		 *
+		 * @method get.settings
+		 * @param {String} The name of a specific setting
+		 * @return {Mixed} Returns the value of the settings or, if there is
+		 * more than one element selected, an array of values. If no settings
+		 * exist on an element, it defaults to false.
+		 **/
+		settings : function( str ) {
+			// the return array
+			var arr = [];
+			// loop through the elements
+			$(this).each(function() {
+				var settings = $(this).data('SimpleTimer.settings');
+				if ( settings === undefined ) {
+					// default to false
+					arr.push(false);
+				}else {
+					// add settings
+					arr.push(settings);
 				}
 			});
 
-			//replace attributes
-			imgPlaceHolder.attr(attributes);
-		},
-
-		load : function(slide) {
-			this.slide = slide;
-			//set state
-			this.slide.getContainer().data('SimpleSlides.global').state.setState('load');
-			//slide images
-			var slideImgs = this.slide.getWrapper().find('img');
-			if(slideImgs.length) {
-				//total images to load
-				this.total = slideImgs.length;
-				//load images
-				var parent = this;
-				slideImgs.each(function() {
-					parent.loadImage($(this));
-				});
+			if ( this.length === 1 ) {
+				// return for one element
+				return arr[0];
 			}else {
-				this.slide.getWrapper().data('SimpleSlides.loaded', true);
-				this.slide.getContainer().data('SimpleSlides.global').state.setState('noload');
-				methods.goTo.call(this.slide.getContainer(),this.slide.index);
+				// return for multiple selected elements
+				return arr;
 			}
 		},
 
-		reset : function() {
-			//unbind load events
-			this.slide.getWrapper().find('img').unbind('load');
-			//reset settings
-			this.count = 0;
-			this.total = 0;
-			this.hideLoader();
-		}
+		/**
+		 * Get a specific setting passed in as a string.
+		 *
+		 * @method get.setting
+		 * @param {String} The name of a specific setting
+		 * @return {Mixed} Returns the value of the setting or, if there is more
+		 * than one element selected, an array of values. If no settings exist
+		 * on an element, it defaults to false.
+		 **/
+		setting : function( str ) {
+			// the return array
+			var arr = [];
+			// loop through the elements
+			$(this).each(function() {
+				var settings = $(this).data('SimpleTimer.settings');
+				if ( settings === undefined ||
+					 settings[str] === undefined ) {
+					// default to false
+					arr.push(false);
+				}else {
+					// add setting
+					arr.push(settings[str]);
+				}
+			});
 
-	};
-
-	//timer object
-	
-	var Timer = function() {
-
-		function _counting() {
-			this.count+=this.increment;
-			if(this.count >= this.duration) {
-				var callback = this.callback;
-				//reset timer
-				this.reset();
-				if(callback) {callback();}
+			if ( this.length === 1 ) {
+				// return for one element
+				return arr[0];
 			}else {
-				this.counting();
+				// return for multiple selected elements
+				return arr;
 			}
-		}
+		},
 
-		this.timeout = null;
-		this.increment = 50;
-		this.callback = false;
-		this.isTiming = false;
-		this.isCounting = false;
-		this.duration = 0;
-		this.count = 0;
-
-		this.counting = function() {
-			var parent = this;
-			this.timeout = setTimeout(function(){_counting.call(parent);},this.increment);
-		};
-	};
-
-	Timer.prototype = {
+		/**
+		 * Get the percentage  of how close the timer is to its duration on the
+		 * selected elements. The percentage is calculated based on the
+		 * increment and the duration. Thus, a smaller increment relative to
+		 * the duration will yield a more accurate percentage.
+		 *
+		 * @method get.percent
+		 * @return {Mixed} Returns a single floating point value between 0 and 1
+		 * if one element was selected, otherwise it returns an array of
+		 * floating points. If an element has not been initialized, the value
+		 * defaults to false.
+		 **/
 		percent : function() {
-			return Math.round(this.count / this.duration * 1000) / 1000;
-		},
-	
+			// the return array
+			var arr = [];
+			// loop through the elements
+			$(this).each(function() {
+				var settings = $(this).data('SimpleTimer.settings');
+				if ( settings === undefined ) {
+					// default to false
+					arr.push(false);
+				}else {
+					// set percent to the nearest 1000th
+					arr.push(Math.round(settings.count /
+						settings.duration * 1000) / 1000);
+				}
+			});
 
-		start : function() {
-			if(this.isCounting) {return false;}
-			
-			if(typeof arguments[0] === 'number') {this.duration = arguments[0];}
-			if(typeof arguments[1] === 'function') {this.callback = arguments[1];}
-			this.isTiming = true;
-			this.isCounting = true;
-			this.counting();
-
-			return true;
-		},
-	
-		stop : function() {
-			if(this.isCounting) {
-				this.isCounting = false;
-				clearTimeout(this.timeout);
-
-				return true;
+			if ( this.length === 1 ) {
+				// return for one element
+				return arr[0];
+			}else {
+				// return for multiple selected elements
+				return arr;
 			}
-
-			return false;
 		},
-	
-		reset : function() {
-			this.stop();
-			this.isTiming = false;
-			this.callback = false;
-			this.count = 0;
-			this.duration = 0;
-		}
-	};
-	
-	//transition object
-	
-	var Transition = function() {
-		//default
-		if(typeof arguments[0] === 'object') {
-			this.timer = arguments[0];
-		}else {
-			this.timer = new Timer();
-		}
-		this.ssA = false;
-		this.ssB = false;
-		this.animation = 'fade';
-		this.duration = 1000;
-		this.queue = 1;
-		this.overflow = false;
-		this.callback = false;
-	};
 
-	Transition.prototype = {
-
-		setProperties : function () {
-			var parent = this;
-			if(typeof arguments[0] === 'object') {
-				$.each(arguments[0], function(key, value) {
-					if(typeof parent[key] !== 'undefined') {
-						parent[key] = value;
+		/**
+		 * Get a boolean indicating whether are not the timer is currently
+		 * timing.
+		 *
+		 * @method get.timing
+		 * @return {Mixed} Returns true if the timer is currently timing, false
+		 * otherwise. A single boolean is returned if one element was selected,
+		 * otherwise it returns an array of booleans. If an element has not been
+		 * initialized, the value defaults to false.
+		 **/
+		timing : function() {
+			// the return array
+			var arr = [];
+			// loop through the elements
+			$(this).each(function() {
+				var settings = $(this).data('SimpleTimer.settings');
+				if ( settings === undefined ) {
+					// default to false
+					arr.push(false);
+				}else {
+					// check the timeout setting
+					if ( settings.timeout === false ) {
+						arr.push(false);
+					}else {
+						arr.push(true);
 					}
-				});
-			}
-		},
-		
-		animate : function() {
-			var pc = this.timer.percent();
-			var settings = {
-				'container':this.ssA.getContainer(),
-				'slideA':this.ssA.getSlide(),
-				'slideB':this.ssB.getSlide(),
-				'duration':(pc===0) ? this.duration : this.duration * (1 - pc),
-				'percent':pc,
-				'overflow':this.overflow
-			};
-			//start transition
-			Transition.animation(this.animation,settings);
-		},
-		
-		start : function() {
-			if(this.timer.isCounting) {return false;}
-			this.setProperties(arguments[0]);
+				}
+			});
 
-			//start timer & animate
-			if(this.timer.isTiming) {
-				this.timer.start();
+			if ( this.length === 1 ) {
+				// return for one element
+				return arr[0];
 			}else {
-				//queue index
-				this.ssB.getWrapper().css('z-index',this.queue);
-				//display
-				this.ssB.getWrapper().css('visibility','visible');
-				this.timer.start(this.duration,this.callback);
+				// return for multiple selected elements
+				return arr;
 			}
-
-			this.animate();
-
-			return true;
-		},
-	
-		stop : function() {
-			this.timer.stop();
-			this.ssA.getWrapper().find('*').stop(true);
-			this.ssB.getWrapper().find('*').stop(true);
-
-			return true;
 		},
 
-		reset : function() {
-			this.timer.reset();
-			//slides
-			this.stop();
-			this.ssA.getSlide().css({
-				'top':'0px',
-				'left':'0px'
-			});
-			this.ssB.getSlide().css({
-				'top':'0px',
-				'left':'0px'
-			});
-			this.ssA.getWrapper().css({
-				'visibility':'hidden',
-				'z-index':0
-			});
-			this.ssB.getWrapper().css('z-index',0);
-			//properties
-			this.ssA = false;
-			this.ssB = false;
-			this.animation = 'fade';
-			this.duration = 1000;
-			this.queue = 1;
-			this.overflow = false;
-			this.callback = false;
-		}
+	},
 
-	};
+	/**
+	 * Publicly accessible methods called via
+	 * $("selector").simpleImageLoad("methodName").
+	 */
+	methods = {
 
-	//static methods
-	
-	Transition.animation = function(animate,settings) {
-
-		var presetTransitions = {
-
-			fade : function( settings ) {
-				var op = parseFloat(settings.slideB.css('opacity'));
-				// reset opacity to 0
-				if ( op === 1 ) {
-					settings.slideB.css( {opacity:0} );
-				}
-				// set the opacity based on the percentage
-				if ( settings.percent > 0 ) {
-					settings.slideB.css( {opacity:settings.percent} );
-				}
-				// animage to full opacity
-				settings.slideB.animate({
-					opacity: 1
-				}, settings.duration);
-			},
-
-			slideLeft : function( settings ) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.container.innerWidth();
-				}else {
-					var mv = parseInt(settings.slideB.css('left'));
-				}
-				// start slide B to the right
-				settings.slideB.css('left', mv + 'px')
-				// animate slide B to slide in moving left
-				.animate({
-					left: '-=' + mv
-				}, settings.duration);
-				// check for slide A
-				if( settings.slideA ) {
-					// start slide A on to the left of slide B
-					settings.slideA.css('left',
-						( mv - settings.container.innerWidth() ) + 'px')
-					// animate slide A to slide out moving left
-					.animate({
-						left: '-=' + mv
-					}, settings.duration);
-				}
-			},
-
-			slideLeftOver : function( settings ) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.container.innerWidth();
-				}else {
-					var mv = parseInt(settings.slideB.css('left'));
-				}
-				// start slide B to the right
-				settings.slideB.css('left', mv + 'px')
-				// animate slide B to slide in moving left
-				.animate({
-					left: '-=' + mv
-				}, settings.duration);
-			},
-
-			slideRight : function( settings ) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.slideB.innerWidth();
-				}else {
-					var mv = Math.abs(parseInt(settings.slideB.css('left')));
-				}
-				// start slide B to the left
-				settings.slideB.css('left',-mv+'px')
-				// animate slide B to slide in moving right
-				.animate({
-					left: '+=' + mv
-				}, settings.duration);
-				// check for slide A
-				if ( settings.slideA ) {
-					// start slide A to the right of slide B
-					settings.slideA.css('left',
-						( -mv+settings.slideB.outerWidth() ) + 'px')
-					// animate slide A to move out to the right
-					.animate({
-						left: '+=' + mv
-					}, settings.duration);
-				}
-			},
-
-			slideRightOver : function(settings) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.slideB.innerWidth();
-				}else {
-					var mv = Math.abs(parseInt(settings.slideB.css('left')));
-				}
-				// start slide B to the left
-				settings.slideB.css('left',-mv+'px')
-				// animate slide B to slide in moving right
-				.animate({
-					left: '+=' + mv
-				}, settings.duration);
-			},
-
-			slideUp : function(settings) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.container.innerHeight();
-				}else {
-					var mv = parseInt(settings.container.innerHeight() *
-						( 1 - settings.percent ));
-				}
-				// start slide B at the top
-				settings.slideB.css('top', mv + 'px')
-				// animate slide B to slide in moving down
-				.animate({
-					top: '-=' + mv
-				}, settings.duration);
-				// check for slide A
-				if( settings.slideA ) {
-					// start slide A at the bottom of slide B
-					settings.slideA.css('top',
-						( mv-settings.container.innerHeight() ) + 'px')
-					// animate slide A to move down and out
-					.animate({
-						top: '-=' + mv
-					}, settings.duration);
-				}
-			},
-
-			slideUpOver : function(settings) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.container.innerHeight();
-				}else {
-					var mv = parseInt(settings.container.innerHeight() *
-						( 1 - settings.percent ));
-				}
-				// start slide B at the top
-				settings.slideB.css('top', mv + 'px')
-				// animate slide B to slide in moving down
-				.animate({
-					top: '-=' + mv
-				}, settings.duration);
-			},
-
-			slideDown : function(settings) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.slideB.innerHeight();
-				}else {
-					var mv = parseInt(settings.slideB.innerHeight() *
-						( 1 - settings.percent ));
-				}
-				// start slide B at the bottom
-				settings.slideB.css('top', -mv + 'px')
-				// animate slide B to slide in moving up
-				.animate({
-					top: '+=' + mv
-				}, settings.duration);
-				// check for slide A
-				if ( settings.slideA ) {
-					// start slide A on top of slide B
-					settings.slideA.css('top',
-						( -mv+settings.slideA.outerHeight()) + 'px')
-					// animate slide A to slide up and out
-					.animate({
-						top: '+=' + mv
-					}, settings.duration);
-				}
-			},
-
-			slideDownOver : function(settings) {
-				// set the amount to move based on the percentage
-				if ( settings.percent === 0 ) {
-					var mv = settings.slideB.innerHeight();
-				}else {
-					var mv = parseInt(settings.slideB.innerHeight() *
-						( 1 - settings.percent ));
-				}
-				// start slide B at the bottom
-				settings.slideB.css('top', -mv + 'px')
-				// animate slide B to slide in moving up
-				.animate({
-					top: '+=' + mv
-				}, settings.duration);
-			}
-
-		};
-		
-		if(typeof animate === 'string') {
-			// if overflow is set, Over transitions must be implemented
-			if ( settings.overflow === true ) {
-				var index = animate.indexOf('Over');
-				if ( index === -1 ) {
-					animate += 'Over';
-				}
-			}
-			if ( typeof presetTransitions[animate] === 'function' ) {
-				// apply the standard transition
-				presetTransitions[animate](settings);
-			}else {
-				// default to fade in
-				presetTransitions.fade(settings);
-			}
-		}else if ( typeof animate === 'function' ) {
-			animate(settings);
-		}else {
-			$.error('Simple Slides Error: invalid transition. Transitions ' +
-					'must be of type string or function.');
-		}
-	};
-
-	//publicly accessible methods $('div').simpleSlides('methodName')
-
-	var methods = {
-
+		/**
+		 * The initialization method. Used to set the properties of the timer
+		 * and attach the data to the selected jQuery objects.
+		 *
+		 * @method methods.init
+		 * @param {Object} options An object used to set publicly accessible
+		 * options such as the timer's increment, duration, and callbacks (see
+		 * README.md for details)
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
 		init : function( options ) {
+			// CSS
 			// hide the slides that are outside the container
 			$(this).css('overflow','hidden');
 
-			// Create some defaults, extending them with any options that were provided
-			var settings = $.extend( true, {
-				'json'  : false,
-				'loader' : false,
-				'slide' : 0,
-				'transition' : {
-					'default':{
-						'duration':1000,
-						'animation':'fade'
-					}
-				},
-				'duration' : 2000,
-				'autostart' : false,
-				'overflow' : false,
-				'maxOverflow' : 5
-			}, options,
+			// SETTINGS
+			/**
+			 * Create some defaults, extending them with any options that were
+			 * provided
+			 */
+			// simple slides settings
+			var settings = $.extend( true, {}, _settings, options,
 			// private settings
 			{
-				'id' : Math.round( (Math.random() - 0.00001) * 100000 ),
-				'total' : 0,
-				'state' : new State(),
-				'timer' : new Timer()
+				total   :   0,
+				state   :   new State(),
 			});
+			// transition settings
+			settings.transitions = new Transitions(settings.transitions);
 			// transition queue
-			settings.transitions = [new Transition(settings.timer)];
-			
+			settings.queue = new Queue(settings.transitions);
+			// simple timer settings
+			var settingsTimer = helpers.extendOver(
+				$.simpleTimer('getDefaultSettings'),
+				settings);
+			// add Simple Timer to container
+			$(this).simpleTimer(settingsTimer);
+
 			return this.each(function(){
-				// append json
+				// json data for images using json2html
 				if ( settings.json ) {
-					for( var i = 0; i < settings.json.length; i++ ) {
-						helpers.appendImage($(this),settings.json[i]);
-					}
+					$(this).json2html(
+						// data
+						settings.json,
+						// transform
+						{
+							tag     :   'img',
+							src     :   '${src}',
+						}
+					);
+					// delete json
+					settings.json = undefined;
 				}
-				// delete json
-				delete settings.json;
 
 				// set total slides
 				settings.total = $(this).children().length;
 
 				// search for a loader image with class name
-				// "simpleSlides.loader"
-				if($(this).children('.simpleSlides.loader').length === 0) {
-					if ( settings.loader ) {
-						//add loader class
-						if ( typeof settings.loader === 'string' ) {
-							settings.loader = {
-								'img'   :   settings.loader,
-								'class' :   '.simpleSlides.loader'
-							};
-						}else if ( typeof settings.loader === 'object' ) {
-							var className = ' .simpleSlides.loader';
-							if ( typeof settings.loader.class === 'string' ) {
-								settings.loader.class += className;
-							}else {
-								settings.loader.class = className;
-							}
-						}
-						// append loader
-						helpers.appendImage($(this),settings.loader);
-					}
-				}else {
-					settings.total -= 1;
-				}
-
-				// add loader object
-				settings.loader = new Loader();
 
 				// check start slide
 				if ( settings.slide >= settings.total || settings.slide < 0 ) {
@@ -834,8 +1144,6 @@
 
 				// stack & wrap children
 				var wrapper = helpers.wrapElement($(this).children().first());
-				// data loaded
-				wrapper.data('SimpleSlides.loaded',false);
 				// stack properties
 				var heightInc = wrapper.height();
 				var height = 0;
@@ -844,16 +1152,13 @@
 					height += heightInc;
 					wrapper = helpers.wrapElement($(this));
 					wrapper.css('top', -height + 'px');
-					wrapper.data('SimpleSlides.loaded', false);
 				});
 				// hide all but the starting slide
 				$(this).children().not(':eq(' + settings.slide + ')')
 					.css('visibility','hidden');
 
-				// set the class id
-				$(this).addClass('simpleSlides' + settings.id);
 				// save persistent data
-				$(this).data('SimpleSlides.global', settings);
+				$(this).data('SimpleSlides.settings', settings);
 
 				// auto play
 				if ( settings.autostart ) {
@@ -862,213 +1167,283 @@
 			});
 		},
 
+		/**
+		 * Starts playing the slides
+		 *
+		 * @method methods.play
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
 		play : function() {
 
-			this.each(function(){
+			this.each(function() {
 				// current jQuery object
 				var container = $(this);
 				// retrieve global settings
-				var settings = container.data('SimpleSlides.global');
+				var settings = container.data('SimpleSlides.settings');
 				var state = settings.state.getState();
 				// set play state
 				settings.state.setState('play');
 				// play states
 				switch ( state ) {
-					case 'pause-in': // paused between transitions
-						settings.timer.start();
+					case 'pause-interval': // paused between transitions
+						container.simpleTimer('start');
 						break;
-					case 'pause-tr': // paused during transitions
-						for ( var i = 0; i < settings.transitions.length;
-							  i++ ) {
-							settings.transitions[i].start();
-						}
+					case 'pause-transition': // paused during transitions
+						settings.queue.start();
 						break;
-					case 'stop-in': // stopped between transitions
-						settings.timer.start(settings.duration,function(){
-							methods.next.call(container);
-						});
+					case 'stop-interval': // stopped between transitions
+						container.simpleTimer('update', {
+							onComplete  :   function() {
+								methods.next.call(container);
+							}
+						}).simpleTimer('start');
 						break;
 				}
 			});
 		},
 
+		/**
+		 * Pauses the slides. If a transition is in progress, the transition
+		 * will be stopped along with all jQuery animations.
+		 *
+		 * @method methods.pause
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
 		pause : function() {
 
 			this.each(function(){
+				// current jQuery object
+				var container = $(this);
 				// retrieve global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				var state = settings.state.getState();
 
 				// enter pause
-				if ( state !== 'load' && state !== 'stop-in' &&
-					 state !== 'stop-tr') {
+				if ( state !== 'loading' && state !== 'stop-interval' &&
+					 state !== 'stop-transition') {
 					settings.state.setState('pause');
 				}
 
 				switch ( state ) {
-					case 'play-in': // playing between transitions
-						settings.timer.stop();
+					case 'play-interval': // playing between transitions
+						container.simpleTimer('stop');
 						break;
-					case 'play-tr': // playing during transitions
-						for(var i=0;i<settings.transitions.length;i++) {
-							settings.transitions[i].stop();
-						}
+					case 'play-transition': // playing during transitions
+						settings.queue.stop();
 						break;
 				}
 			});
 		},
 
+		/**
+		 * Stops the slides. If a transition is in progress, the transition will
+		 * run its course, stopping on slide B.
+		 *
+		 * @method methods.stop
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
 		stop : function() {
 
 			this.each(function(){
+				// current jQuery object
+				var container = $(this);
 				// global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				var state = settings.state.getState();
-				// check pause
-				if ( state === 'pause-in' || state === 'pause-tr' ) {
+				// if paused, stop does not apply
+				if ( state === 'pause-interval' || state === 'pause-transition' ) {
 					return false;
 				}
-				// check play
-				if ( state === 'play-in' ) {
-					settings.timer.reset();
-				}
+				// the container's timer is reset
+				container.simpleTimer('reset');
 				// set state
 				settings.state.setState('stop');
 			});
 		},
 
-		previous: function() {
+		/**
+		 * Go to the previous slide.
+		 *
+		 * @method methods.previous
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
+		previous : function() {
 
 			this.each(function(){
 				// retrieve global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				// inrement slide
 				var previous = ( settings.slide === 0 ) ? settings.total - 1 :
 								settings.slide - 1;
 				// filter goTo
-				filters.goTo.call($(this),previous);
+				filters.goTo.call($(this), previous, 'onPrevious');
 			});
 		},
 
-		next: function() {
+		/**
+		 * Go to the next slide.
+		 *
+		 * @method methods.next
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
+		next : function() {
 
 			this.each(function(){
 				// retrieve global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				// inrement slide
 				var next = ( settings.total===settings.slide+1 ) ? 0 :
 							settings.slide + 1;
 				//filter goTo
-				filters.goTo.call($(this),next);
+				filters.goTo.call($(this), next, 'onNext');
 			});
 		},
 
-		goTo : function( slide ) {
+		/**
+		 * Go to the given slide.
+		 *
+		 * @method methods.goTo
+		 * @param {Number} slide The index of the slide to go to
+		 * @param {String} animation The transition animation. Used to override
+		 * the slide's animation (optional)
+		 * @return {Object} The jQuery object's from which the method was called
+		 * @chainable
+		 **/
+		goTo : function( slide, animation ) {
 
 			this.each(function(){
+				// current jQuery object
+				var container = $(this);
 				// retrieve global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				var state = settings.state.getState();
-				// get slide objects
-				var ssA = new SimpleSlide(settings.id,settings.slide);
-				var ssB = new SimpleSlide(settings.id,slide);
-				// load slide
-				if ( !ssB.getWrapper().data('SimpleSlides.loaded') ) {
-					settings.loader.load(ssB);
+				// get Simple Slide objects
+				var ssA = new SimpleSlide(container.children().
+					eq(settings.slide));
+				var ssB = new SimpleSlide(container.children().eq(slide));
+				// load slide image
+				if ( ssB.getSlide().is('img') &&
+					 !ssB.getSlide().simpleImageLoad('getLoaded') ) {
+					// Simple Image Load
+					ssB.getSlide().simpleImageLoad({
+						increment   :   100,
+						duration    :   5000,
+						onLoad      :   function () {
+							methods.goTo.call(container, slide, animation);
+						},
+						onError     :   function () {
+							$.error('Simple Slides Error: Slide #' + slide +
+								' image failed to load');
+						},
+					});
+
 					return false;
-				}
-				// transition settings
-				var stransition = ( typeof settings.transition[slide] ===
-								'undefined' ) ? settings.transition.default :
-								settings.transition[slide];
-				if ( typeof stransition === 'string' ||
-					 typeof stransition === 'function' ) {
-					stransition = {
-						'animation'     :   stransition,
-						'duration'      :   settings.transition.default.duration
-					};
-				}else if ( typeof stransition === 'object' ) {
-					if ( typeof stransition.duration === 'undefined' ) {
-						stransition.duration = settings.transition.default.duration;
-					}
-					if ( typeof stransition.animation === 'undefined' ) {
-						stransition.animation = settings.transition.default.animation;
-					}
-				}
-				// queue transition
-				if ( state === 'play-tr' || state === 'stop-tr' ) {
-					var ntransition=new Transition();
-					settings.transitions.push(ntransition);
 				}
 				// set current slide
 				settings.slide = slide;
-				// enter transition state
-				settings.state.setState('tr');
-				// start transition
-				settings.transitions[settings.transitions.length-1].start(
-					{
-						'ssA'       :   ssA,
-						'ssB'       :   ssB,
-						'animation' :   stransition.animation,
-						'duration'  :   stransition.duration,
-						'queue'     :   settings.transitions.length,
-						'overflow'  :   settings.overflow,
-						'callback'  :   function(){
-							// finish transitions
-							if ( settings.slide === ssB.getWrapper().index() ) {
-								// exit transition
-								settings.state.setState('no-tr');
-								// reset transition queue
-								for( var i = 0;
-									 i < settings.transitions.length; i++ ) {
-									settings.transitions[i].reset();
-								}
-								settings.transitions.length = 1;
-								// play next slide
-								if( settings.state.getState() === 'play-in' ) {
-									settings.state.setState('stop');
-									methods.play.call(ssB.getContainer());
-								}
+				// new transition
+				settings.queue.add(animation, {
+					ssA         :   ssA,
+					ssB         :   ssB,
+					slide       :   slide,
+					overlay     :   settings.overlay,
+					onComplete  :   function(){
+						// finish transitions
+						if ( settings.slide === ssB.getWrapper().index() ) {
+							// exit transition
+							settings.state.setState('not-transitioning');
+							// reset queue
+							settings.queue.reset();
+							// clear queue
+							settings.queue.clear();
+							// play next slide
+							if ( settings.state.getState() === 'play-interval' ) {
+								methods.stop.call(container);
+								methods.play.call(container);
 							}
 						}
 					}
-				);
+				})
+				// start the last transition
+				.start();
+				// enter transition state
+				settings.state.setState('transitioning');
 			});
 		},
 
 		destroy : function() {
 
 			this.each(function(){
+				// current jQuery object
+				var container = $(this);
 				// retrieve global settings
-				var settings = $(this).data('SimpleSlides.global');
+				var settings = $(this).data('SimpleSlides.settings');
 				// reset transitions 
-				for( var i = 0; i < settings.transitions.length; i++) {
-					settings.transitions[i].reset();
-				}
+				settings.queue.reset();
 				// reset global timer
-				settings.timer.reset();
+				container.simpleTimer('start');
 				// clear child data
 				$(this).children().each(function() {
-					$(this).removeData('SimpleSlides.loaded');
+					$(this).removeData('SimpleTimer.settings');
 				});
 				// clear global data
-				$(this).removeData('SimpleSlides.global');
+				$(this).removeData('SimpleSlides.settings');
 			});
 		}
 	};
 
-	//jQuery plugin
+	// jQuery selected
 
 	$.fn.simpleSlides = function( method ) {
-		// call the methods from the methods variable
-		if ( methods[method] ) {
-			return filters.all.apply( this, arguments );
+		if ( typeof method === 'string' ) {
+			if ( method.substr(0, 3) === 'get' ) {
+				method = method.substr(3, 1).toLowerCase() +
+					method.substr(4);
+				// getter functions (not chainable)
+				return filters.get.apply( this, arguments );
+			} else if ( methods[method] ) {
+				// filtered methods
+				return filters.methods.apply( this, arguments );
+			} else {
+				$.error('Simple Slides Error: method ' +  method +
+					' does not exist.');
+			}
 		} else if ( typeof method === 'object' || ! method ) {
+			// initialize the plugin
 			return methods.init.apply( this, arguments );
-		} else {
-			$.error( 'Method ' +  method +
-				' does not exist on jQuery.simpleSlides' );
 		}
+		// general exception
+		$.error('Simple Slides Error: the simple slides plugin expects at' +
+			'least 1 paramater. The first paramater must be of type "string" ' +
+			'or "object"');
+	};
+
+	// jQuery object (get functions only)
+
+	$.simpleSlides = function( method ) {
+		if ( typeof method === 'string' ) {
+			suffix = method.substr(3, 1).toLowerCase() +
+				method.substr(4);
+			if ( method.substr(0, 3) === 'get' ) {
+				// getter functions (not chainable)
+				return filters.get.apply( [], [suffix].push(
+						Array.prototype.slice.call( arguments, 1 )));
+			}else if ( method.substr(0, 3) === 'set' ) {
+				if ( set[suffix] ) {
+					// getter functions (not chainable)
+					return set[suffix].apply( [],
+						Array.prototype.slice.call( arguments, 1 ));
+				}
+			}
+		}
+		// general exception
+		$.error('Simple Slides Error: direct calls to simpleSlides only works ' +
+			'with get or set functions');
 	};
 
 })(jQuery);

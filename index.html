@@ -1,4 +1,5 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.o
+rg/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 
@@ -42,8 +43,17 @@ img {
 }
 </style>
 
-	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.4.1/jquery.min.js"></script>
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js">
+	</script>
+	<!-- add json2html; both the core library and the jquery wrapper -->
+	<script type="text/javascript" src="src/json2html.js"></script>
+	<script type="text/javascript" src="src/jquery.json2html.js"></script>
+	<!-- add the simple plugins -->
+	<script src="src/jquery.simpletimer.js" type="text/javascript"></script>
+	<script src="src/jquery.simpleimageload.js" type="text/javascript"></script>
 	<script src="src/jquery.simpleslides.js" type="text/javascript"></script>
+	<!-- add transitions -->
+	<script src="src/transitions.js" type="text/javascript"></script>
 
 	<title>Simple Slides</title>
 
@@ -51,11 +61,13 @@ img {
 <body>
 
 	<div id="container1">
+		<!--
 		<img src="http://www.tcvillas.com/grace_bay_beach_house/grace_bay_beach
-			_house_beach.jpg"/>
-		<img src="http://www.tnetnoc.com/hotelphotos/731/116731/2631759-Barcelo-Tucancun-Beach-All-Inclusive-Hotel-Exterior-1-DEF.jpg"/>
-		<img src="http://thereafterish.files.wordpress.com/2012/10/thereafterish_beaches-of-hawaii_sherwood-forest-beach_11.jpg"/>
-		<img src="http://barbados.org/blog/wp-content/uploads/miami-beach-barbados.jpg"/>
+_house_beach.jpg"/>
+		<img src="http://www.tnetnoc.com/hotelphotos/731/116731/2631759-Barcelo
+-Tucancun-Beach-All-Inclusive-Hotel-Exterior-1-DEF.jpg"/>
+		<img src="http://barbados.org/blog/wp-content/uploads/miami-beach-barba
+dos.jpg"/>
 		<div id="slide5">
 			<div class="slide-div"></div>
 			<div class="slide-div"></div>
@@ -68,17 +80,27 @@ img {
 			<div class="slide-div"></div>
 		</div>
 		<img src="http://www.rwongphoto.com/RW3285_web.jpg"/>
-		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bora-Pearl-Beach-Resort-Spa-Hotel-Exterior-4.jpg"/>
-		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bora-Pearl-Beach-Resort-Spa-Pool-25.jpg"/>
-		<img src="http://aieseclife.org/wp-content/uploads/2012/02/Miami-Beach.jpg"/>
+		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bo
+ra-Pearl-Beach-Resort-Spa-Hotel-Exterior-4.jpg"/>
+		<img src="http://www.orbitz.com//hotelimages/353/138353/2631759-Bora-Bo
+ra-Pearl-Beach-Resort-Spa-Pool-25.jpg"/>
+		<img src="http://aieseclife.org/wp-content/uploads/2012/02/Miami-Beach.
+jpg"/>
+-->
 	</div>
 	<div id="controls">
-		<input type="button" value="Play" onClick="$('#container1').simpleSlides('play')" />
-		<input type="button" value="Pause" onClick="$('#container1').simpleSlides('pause')" />
-		<input type="button" value="Stop" onClick="$('#container1').simpleSlides('stop')" />
-		<input type="button" value="<<" onClick="$('#container1').simpleSlides('previous')" />
-		<input type="button" value=">>" onClick="$('#container1').simpleSlides('next')" />
-		<input type="button" value="Go To:" onClick="$('#container1').simpleSlides('goTo',$('#goTo').val())" />
+		<input type="button" value="Play" onClick="$('#container1')
+.simpleSlides('play')" />
+		<input type="button" value="Pause" onClick="$('#container1')
+.simpleSlides('pause')" />
+		<input type="button" value="Stop" onClick="$('#container1')
+.simpleSlides('stop')" />
+		<input type="button" value="<<" onClick="$('#container1')
+.simpleSlides('previous')" />
+		<input type="button" value=">>" onClick="$('#container1')
+.simpleSlides('next')" />
+		<input type="button" value="Go To:" onClick="$('#container1')
+.simpleSlides('goTo',$('#goTo').val())" />
 		<input id="goTo" type="text" value="" />
 	</div>
 	<div id="trace-log"></div>
@@ -86,28 +108,50 @@ img {
 <script type="text/javascript">
 /*<![CDATA[*/
 $('#container1').simpleSlides({
-	'transition':{
-		1 : 'slideRight',
-		2 : 'slideLeft',
-		3 : 'slideUp',
-		4 : function(settings) {
-			var slides = settings.slideB.children();
-			var slideHeight = Math.round(settings.container.innerHeight() / slides.length);
-			var mv = (settings.percent===0) ? slideHeight : slideHeight - Math.round(slideHeight * settings.percent);
-			slides.each(function() {
-				$(this).css({
-					'height':(slideHeight - mv) + 'px',
-					'margin-bottom':mv + 'px'
-				});
-				$(this).animate({
-					'height': '+='+mv,
-					'margin-bottom':'-='+mv
-				}, settings.duration);
-			});
-		}
+	duration : 1000,
+	transitions  :   {
+		onDefault   :   {
+			duration            :   1000,
+			animation           :   'fade'
+		},
+		onPrevious   :   {
+			duration            :   1000,
+			animation           :   'slideRight'
+		},
+		onNext   :   {
+			duration            :   1000,
+			animation           :   'slideLeft'
+		},
+		2   :   {
+			duration            :   1000,
+			animation           :   'slideUp'
+		},
 	},
-	'autostart':true,
-	'overflow':true
+	json    :   [
+		{
+			src :   'http://www.tcvillas.com/grace_bay_beach_house/grace_' +
+				'bay_beach_house_beach.jpg',
+		},
+		{
+			src :   'http://www.tnetnoc.com/hotelphotos/731/116731/2631759-' +
+				'Barcelo-Tucancun-Beach-All-Inclusive-Hotel-Exterior-1-DEF.jpg',
+		},
+		{
+			src :   'http://barbados.org/blog/wp-content/uploads/miami-beach-' +
+				'barbados.jpg',
+		},
+		{
+			src :   'http://www.rwongphoto.com/RW3285_web.jpg',
+		},
+		{
+			src :   'http://www.orbitz.com//hotelimages/353/138353/2631759-' +
+				'Bora-Bora-Pearl-Beach-Resort-Spa-Hotel-Exterior-4.jpg',
+		},
+		{
+			src :   'http://www.orbitz.com//hotelimages/353/138353/2631759-' +
+				'Bora-Bora-Pearl-Beach-Resort-Spa-Pool-25.jpg',
+		},
+	]
 });
 /*]]>*/
 </script>
