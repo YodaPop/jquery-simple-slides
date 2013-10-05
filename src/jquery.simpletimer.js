@@ -3,7 +3,7 @@
 * @descripton       A jQuery plugin that adds a timer to an element with an
 *                   assigned interval and duration.
 *
-* @version          0.1.7
+* @version          0.1.9
 * @requires         Jquery 1.4+
 *
 * @author           Ben Gullotti
@@ -17,84 +17,115 @@
 (function($) {
 
 	/**
-	 * An object containing the public properties used for the timer plugin set
-	 * to their default settings.
-	 *
-	 * @property _settings
-	 * @type Object
-	 * @private
-	 **/
-	var _settings = {
-		increment       :   100,
-		duration        :   1000,
-		autostart       :   false,
-		// callbacks
-		onComplete      :   false,
-		onIncrement     :   false,
-		onStart         :   false,
-		onStop          :   false,
-		onReset         :   false,
-	},
+	 * Private methods and objects
+	 */
 
-	/**
-	 * Starts a timeout that lasts for the plugin's increment value.
-	 *
-	 * @method _time
-	 * @param {Object} The settings the plugin was initialized with
-	 * @private
-	 **/
-	_time = function () {
-		// retrieve settings
-		var settings = $(this).data('SimpleTimer.settings');
-		// set timeout
-		if ( settings.timeout !== false ) {
-			var el = this;
-			settings.timeout = setTimeout( function() {
-				_count.call(el);
-			}, settings.increment);
-		}
-	},
+	var _private = {
 
-	/**
-	 * Counts the increments until the plugin's duration is reached.
-	 *
-	 * @method _count
-	 * @param {Object} The settings the plugin was initialized with
-	 * @private
-	 **/
-	_count = function () {
-		// retrieve settings
-		var settings = $(this).data('SimpleTimer.settings');
-		// increase count
-		settings.count += settings.increment;
-		// on increment event
-		if ( settings.onIncrement ) {
-			settings.onIncrement.call(this, settings);
-		}
-		// check complete
-		if ( settings.count >= settings.duration ) {
-			_complete.call(this);
-		}else {
-			// timeout
-			_time.call(this);
-		}
-	},
+		/**
+		 * An object containing the public properties used for the timer plugin set
+		 * to their default settings.
+		 *
+		 * @property settings
+		 * @type Object
+		 * @private
+		 **/
+		settings : {
+			increment       :   100,
+			duration        :   1000,
+			autostart       :   false,
+			// callbacks
+			onComplete      :   false,
+			onIncrement     :   false,
+			onStart         :   false,
+			onStop          :   false,
+			onReset         :   false,
+		},
 
-	_complete = function () {
-		// retrieve settings
-		var settings = $(this).data('SimpleTimer.settings');
-		// stop timer
-		filters.stop.call($(this));
-		// on complete event
-		if( settings.onComplete ) {
-			settings.onComplete.call(this, settings);
-		}
+		/**
+		 * Starts a timeout that lasts for the plugin's increment value.
+		 *
+		 * @method time
+		 * @param {Object} The settings the plugin was initialized with
+		 * @private
+		 **/
+		time : function ( settings ) {
+			// set timeout
+			if ( settings.timeout !== false ) {
+				var el = this;
+				settings.timeout = setTimeout( function() {
+					filters._private.call(el, 'count');
+				}, settings.increment);
+			}
+		},
+
+		/**
+		 * Counts the increments until the plugin's duration is reached.
+		 *
+		 * @method count
+		 * @param {Object} The settings the plugin was initialized with
+		 * @private
+		 **/
+		count : function ( settings ) {
+			// increase count
+			settings.count += settings.increment;
+			// on increment event
+			if ( settings.onIncrement ) {
+				settings.onIncrement.call(this, settings);
+			}
+			// check complete
+			if ( settings.count >= settings.duration ) {
+				filters._private.call(this, 'complete');
+			}else {
+				// timeout
+				filters._private.call(this, 'time');
+			}
+		},
+
+		/**
+		 * Concludes the timer and calls the onComplete method.
+		 *
+		 * @method complete
+		 * @param {Object} The settings the plugin was initialized with
+		 * @private
+		 **/
+		complete : function ( settings ) {
+			// stop timer
+			filters.stop.call($(this));
+			// on complete event
+			if( settings.onComplete ) {
+				settings.onComplete.call(this, settings);
+			}
+		},
+
 	},
 
 	/**
 	 * Filters applied before method calls.
 	 */
 	filters = {
+
+		/**
+		 * A filter applied before all private methods are called. Private
+		 * methods are only called on a single jQuery object.
+		 *
+		 * @method filters.get
+		 * @param {Object} method The get method
+		 * @return {Mixed} The get method if it exists, otherwise false.
+		 **/
+		_private : function( method ) {
+			// get settings
+			var settings = $(this).data('SimpleTimer.settings');
+			if ( typeof settings == 'undefined' ) {
+				return false;
+			}
+			// call private method
+			if ( _private[method] ) {
+				return _private[method].call( this, settings );
+			}else {
+				return false;
+			}
+		},
 
 		/**
 		 * A filter applied before all get methods except defaultSettings are
@@ -175,7 +206,7 @@
 				// checks if the duration is set to 0 or less
 				if ( settings.duration <=0 ) {
 					// jump to the end
-					_complete.call(this);
+					filters._private.call(this, 'complete');
 				}
 				// checks if the timer has already been started
 				if ( settings.timeout !== false ) {
@@ -247,7 +278,7 @@
 		 **/
 		defaultSettings : function() {
 			// apply to each element
-			return _settings;
+			return $.extend({}, _private.settings);
 		},
 
 		/**
@@ -417,7 +448,7 @@
 			* Create some defaults. Extend them with any options that were
 			* provided.
 			*/
-			var settings = $.extend( true, {}, _settings, options,
+			var settings = $.extend( true, {}, _private.settings, options,
 			// private settings
 			{
 				timeout         :   false,
@@ -453,7 +484,7 @@
 					settings.onStart.call(this, settings);
 				}
 				// start timing
-				_time.call(this);
+				filters._private.call(this, 'time');
 			});
 		},
 

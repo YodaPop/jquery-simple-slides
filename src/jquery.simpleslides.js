@@ -672,24 +672,6 @@
 		},
 
 		/**
-		 * Get the attributes of a DOM element
-		 *
-		 * @method helpers.getAttributes
-		 * @param {Object} el The DOM element
-		 * @return {Object} An object with key-value pairs representing the
-		 * attributes of the DOM element.
-		 * @private
-		 **/
-		getAttributes : function( el ) {
-			var attributes = {};
-			for (var i=0, attrs=el.attributes, l=attrs.length; i<l; i++){
-				attributes[attrs.item(i).nodeName] = attrs.item(i).nodeValue;
-			}
-
-			return attributes;
-		},
-
-		/**
 		 * Wrap the jQuery object inside of a DIV element.
 		 *
 		 * @method helpers.wrapElement
@@ -715,6 +697,30 @@
 				'position'  :   'relative',
 				'top'       :   '0px',
 				'left'      :   '0px'
+			});
+
+			return wrapper;
+		},
+
+		/**
+		 * Adjust the all sibling wrapper elements below according to the
+		 * wrapper's height. Used for newly loaded elements.
+		 *
+		 * @method helpers.wrapTop
+		 * @param {Object} jQobj The wrapper jQuery object
+		 * @return {Object} The wrapper jQuery object
+		 * @private
+		 **/
+		wrapTop : function( wrapper ) {
+			// set new top based on image size
+			var height = wrapper.height();
+			// adjust all siblings below wrapper
+			wrapper.nextAll().each(function() {
+				var current_top = parseFloat(
+					$(this).css('top')
+				);
+				$(this).css('top',
+					(current_top - height) + 'px');
 			});
 
 			return wrapper;
@@ -1073,7 +1079,7 @@
 
 	/**
 	 * Publicly accessible methods called via
-	 * $("selector").simpleImageLoad("methodName").
+	 * $("selector").simpleSlides("methodName").
 	 */
 	methods = {
 
@@ -1143,15 +1149,26 @@
 				}
 
 				// stack & wrap children
-				var wrapper = helpers.wrapElement($(this).children().first());
-				// stack properties
-				var heightInc = wrapper.height();
-				var height = 0;
-				// wrap remaining elements
-				$(this).children().not(':eq(0)').each(function() {
-					height += heightInc;
-					wrapper = helpers.wrapElement($(this));
-					wrapper.css('top', -height + 'px');
+				$(this).children().each(function() {
+					var wrapper = helpers.wrapElement($(this));
+					// check image
+					if ( $(this).is('img') ) {
+						// on image load
+						$(this).simpleImageLoad({
+							increment   :   100,
+							duration    :   5000,
+							onLoad      :   function () {
+								helpers.wrapTop(wrapper);
+							},
+							onError     :   function () {
+								$.error('Simple Slides Error: Slide #' + slide +
+									' image failed to load');
+							},
+						});
+					}else {
+						// every other element
+						helpers.wrapTop(wrapper);
+					}
 				});
 				// hide all but the starting slide
 				$(this).children().not(':eq(' + settings.slide + ')')
@@ -1326,24 +1343,7 @@
 				var ssA = new SimpleSlide(container.children().
 					eq(settings.slide));
 				var ssB = new SimpleSlide(container.children().eq(slide));
-				// load slide image
-				if ( ssB.getSlide().is('img') &&
-					 !ssB.getSlide().simpleImageLoad('getLoaded') ) {
-					// Simple Image Load
-					ssB.getSlide().simpleImageLoad({
-						increment   :   100,
-						duration    :   5000,
-						onLoad      :   function () {
-							methods.goTo.call(container, slide, animation);
-						},
-						onError     :   function () {
-							$.error('Simple Slides Error: Slide #' + slide +
-								' image failed to load');
-						},
-					});
-
-					return false;
-				}
+				// loading
 				// set current slide
 				settings.slide = slide;
 				// new transition

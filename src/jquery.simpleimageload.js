@@ -301,11 +301,11 @@
 		destroy : function() {
 			// apply to each element
 			return this.each( function() {
+				// destroy the timer
+				$(this).simpleTimer('destroy');
 				// clear javascript events
 				this.onload = null;
 				this.onerror = null;
-				// destroy the timer
-				$(this).simpleTimer('destroy');
 				// remove previously stored data
 				$(this).removeData('SimpleImageLoad.settings');
 			});
