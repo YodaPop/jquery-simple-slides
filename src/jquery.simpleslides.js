@@ -3,7 +3,7 @@
 * @descripton       Turns the elements inside a div into slides with assigned
 *                   transitions, handles image loading, and can act as a
 *                   slideshow.
-* @version          0.2.1
+* @version          0.2.2
 * @requires         Jquery 1.6+
 *                   https://github.com/YodaPop/jquery-simple-timer
 *                   https://github.com/YodaPop/jquery-simple-image-load
@@ -686,9 +686,7 @@
 			wrapper.css({
 				'width'     :   '100%',
 				'height'    :   '100%',
-				'position'  :   'relative',
-				'top'       :   '0px',
-				'left'      :   '0px',
+				'position'  :   'absolute',
 				'display'   :   'block',
 				'z-index'   :   0
 			});
@@ -1097,7 +1095,10 @@
 		init : function( options ) {
 			// CSS
 			// hide the slides that are outside the container
-			$(this).css('overflow','hidden');
+			$(this).css({
+				overflow : 'hidden',
+				position : 'relative',
+			});
 
 			// SETTINGS
 			/**
@@ -1151,24 +1152,7 @@
 				// stack & wrap children
 				$(this).children().each(function() {
 					var wrapper = helpers.wrapElement($(this));
-					// check image
-					if ( $(this).is('img') ) {
-						// on image load
-						$(this).simpleImageLoad({
-							increment   :   100,
-							duration    :   5000,
-							onLoad      :   function () {
-								helpers.wrapTop(wrapper);
-							},
-							onError     :   function () {
-								$.error('Simple Slides Error: Slide #' + slide +
-									' image failed to load');
-							},
-						});
-					}else {
-						// every other element
-						helpers.wrapTop(wrapper);
-					}
+					helpers.wrapTop(wrapper);
 				});
 				// hide all but the starting slide
 				$(this).children().not(':eq(' + settings.slide + ')')
