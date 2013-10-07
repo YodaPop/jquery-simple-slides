@@ -539,7 +539,11 @@
 			};
 			// onStart event
 			if ( this.settings.onStart ) {
-				this.settings.onStart();
+				this.settings.onStart({
+					container   :   settings.container,
+					slideA      :   settings.slideA,
+					slideB      :   settings.slideB,
+				});
 			}
 			// start transition
 			Transition.animation(this.settings.animation, settings);
@@ -1354,7 +1358,11 @@
 							settings.queue.clear();
 							// onEndTransition event
 							if ( settings.onEndTransition ) {
-								settings.onEndTransition();
+								settings.onEndTransition({
+									container   :   container,
+									slideA      :   ssA.getSlide(),
+									slideB      :   ssB.getSlide(),
+								});
 							}
 							// play next slide
 							if ( settings.state.getState() === 'play-interval' ) {
