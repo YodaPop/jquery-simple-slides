@@ -1167,6 +1167,10 @@
 				// hide all but the starting slide
 				$(this).children().not(':eq(' + settings.slide + ')')
 					.css('visibility','hidden');
+				// set the starting slide to active class
+				$(this).children().eq(settings.slide).addClass(
+					'simpleslides-active');
+
 
 				// save persistent data
 				$(this).data('SimpleSlides.settings', settings);
@@ -1364,6 +1368,9 @@
 									slideB      :   ssB.getSlide(),
 								});
 							}
+							// active class
+							ssA.getWrapper().removeClass('simpleslides-active');
+							ssB.getWrapper().addClass('simpleslides-active');
 							// play next slide
 							if ( settings.state.getState() === 'play-interval' ) {
 								methods.stop.call(container);
