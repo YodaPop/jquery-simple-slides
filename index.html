@@ -109,6 +109,12 @@ jpg"/>
 /*<![CDATA[*/
 $('#container1').simpleSlides({
 	duration : 1000,
+	onStartTransition   :   function() {
+		$('#trace-log').text('Transition Started');
+	},
+	onEndTransition     :   function() {
+		$('#trace-log').text('Transition Ended');
+	},
 	transitions  :   {
 		onDefault   :   {
 			duration            :   1000,

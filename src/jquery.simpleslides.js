@@ -3,7 +3,7 @@
 * @descripton       Turns the elements inside a div into slides with assigned
 *                   transitions, handles image loading, and can act as a
 *                   slideshow.
-* @version          0.2.2
+* @version          0.2.3
 * @requires         Jquery 1.6+
 *                   https://github.com/YodaPop/jquery-simple-timer
 *                   https://github.com/YodaPop/jquery-simple-image-load
@@ -30,19 +30,21 @@
 	 * @private
 	 **/
 	var _settings = {
-		json        :   false,
-		loader      :   false,
-		slide       :   0,
-		transitions :   {
-			onDefault   :   {
+		json                :   false,
+		loader              :   false,
+		slide               :   0,
+		transitions         :   {
+			onDefault       :   {
 				duration            :   0,
 				animation           :   'none'
 			}
 		},
-		duration    :   1000,
-		autostart   :   false,
-		overlay     :   false,
-		maxOverlay  :   5
+		duration            :   1000,
+		autostart           :   false,
+		overlay             :   false,
+		maxOverlay          :   5,
+		onStartTransition   :   false,
+		onEndTransition     :   false,
 	};
 
 	// classes
@@ -438,6 +440,8 @@
 			animation   :   'none',
 			queue       :   1,
 			overlay     :   false,
+			onStart     :   false,
+			onEnd       :   false,
 		};
 		// update
 		this.update(options);
@@ -533,6 +537,10 @@
 				percent     :   pc,
 				overlay     :   this.overlay
 			};
+			// onStart event
+			if ( this.settings.onStart ) {
+				this.settings.onStart();
+			}
 			// start transition
 			Transition.animation(this.settings.animation, settings);
 
@@ -1142,8 +1150,6 @@
 				// set total slides
 				settings.total = $(this).children().length;
 
-				// search for a loader image with class name
-
 				// check start slide
 				if ( settings.slide >= settings.total || settings.slide < 0 ) {
 					settings.slide = 0;
@@ -1336,6 +1342,7 @@
 					ssB         :   ssB,
 					slide       :   slide,
 					overlay     :   settings.overlay,
+					onStart     :   settings.onStartTransition,
 					onComplete  :   function(){
 						// finish transitions
 						if ( settings.slide === ssB.getWrapper().index() ) {
@@ -1345,6 +1352,10 @@
 							settings.queue.reset();
 							// clear queue
 							settings.queue.clear();
+							// onEndTransition event
+							if ( settings.onEndTransition ) {
+								settings.onEndTransition();
+							}
 							// play next slide
 							if ( settings.state.getState() === 'play-interval' ) {
 								methods.stop.call(container);
