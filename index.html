@@ -41,6 +41,12 @@ img {
 #goTo {
 	width:20px;
 }
+.simpleslides-loader {
+	width   :   200px;
+	height  :   200px;
+	top     :   60px;
+	left    :   70px;
+}
 </style>
 
 	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js">
@@ -103,18 +109,11 @@ jpg"/>
 .simpleSlides('goTo',$('#goTo').val())" />
 		<input id="goTo" type="text" value="" />
 	</div>
-	<div id="trace-log"></div>
 
 <script type="text/javascript">
 /*<![CDATA[*/
 $('#container1').simpleSlides({
 	duration : 1000,
-	onStartTransition   :   function() {
-		$('#trace-log').text('Transition Started');
-	},
-	onEndTransition     :   function() {
-		$('#trace-log').text('Transition Ended');
-	},
 	transitions  :   {
 		onDefault   :   {
 			duration            :   1000,
@@ -134,6 +133,10 @@ $('#container1').simpleSlides({
 		},
 	},
 	json    :   [
+		{
+			src     :   'http://www.gifstache.com/images/ajax_loader.gif',
+			class   :   'simpleslides-loader',
+		},
 		{
 			src :   'http://www.tcvillas.com/grace_bay_beach_house/grace_' +
 				'bay_beach_house_beach.jpg',

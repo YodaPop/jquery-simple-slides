@@ -702,6 +702,7 @@
 				'display'   :   'block',
 				'z-index'   :   0
 			});
+			// slide & loader css
 			jQobj.css({
 				'display'   :   'block',
 				'position'  :   'relative',
@@ -712,29 +713,6 @@
 			return wrapper;
 		},
 
-		/**
-		 * Adjust the all sibling wrapper elements below according to the
-		 * wrapper's height. Used for newly loaded elements.
-		 *
-		 * @method helpers.wrapTop
-		 * @param {Object} jQobj The wrapper jQuery object
-		 * @return {Object} The wrapper jQuery object
-		 * @private
-		 **/
-		wrapTop : function( wrapper ) {
-			// set new top based on image size
-			var height = wrapper.height();
-			// adjust all siblings below wrapper
-			wrapper.nextAll().each(function() {
-				var current_top = parseFloat(
-					$(this).css('top')
-				);
-				$(this).css('top',
-					(current_top - height) + 'px');
-			});
-
-			return wrapper;
-		}
 	},
 
 	// public
@@ -1144,6 +1122,7 @@
 						// transform
 						{
 							tag     :   'img',
+							class   :   '${class}',
 							src     :   '${src}',
 						}
 					);
@@ -1151,18 +1130,42 @@
 					settings.json = undefined;
 				}
 
-				// set total slides
-				settings.total = $(this).children().length;
-
 				// check start slide
 				if ( settings.slide >= settings.total || settings.slide < 0 ) {
 					settings.slide = 0;
 				}
 
+				// get loader
+				if ( $('.simpleslides-loader').length > 0 ) {
+					var loader = $('.simpleslides-loader');
+					loader.remove();
+				}else {
+					var loader = false;
+				}
+
+				// set total slides
+				settings.total = $(this).children().length;
+
 				// stack & wrap children
 				$(this).children().each(function() {
 					var wrapper = helpers.wrapElement($(this));
-					helpers.wrapTop(wrapper);
+					// load images
+					if ( loader && $(this).is('img') ) {
+						// add loader
+						loader.clone().appendTo(wrapper).css({
+							position    :   'relative',
+							display     :   'block',
+						});
+						// onLoad event
+						$(this).simpleImageLoad({
+							onLoad  :   function() {
+								//wrapper.find('.simpleslides-loader').remove();
+							},
+							onError :   function() {
+								//wrapper.find('.simpleslides-loader').remove();
+							},
+						});
+					}
 				});
 				// hide all but the starting slide
 				$(this).children().not(':eq(' + settings.slide + ')')
@@ -1170,7 +1173,6 @@
 				// set the starting slide to active class
 				$(this).children().eq(settings.slide).addClass(
 					'simpleslides-active');
-
 
 				// save persistent data
 				$(this).data('SimpleSlides.settings', settings);

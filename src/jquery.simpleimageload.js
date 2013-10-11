@@ -3,7 +3,7 @@
 * @descripton       Determines when an image element has loaded and executes a
 *                   callback function on complete.
 *
-* @version          0.1.3
+* @version          0.1.4
 * @requires         jQuery 1.6+
 *                   https://github.com/YodaPop/jquery-simple-timer
 *
@@ -17,75 +17,79 @@
 
 (function($) {
 
-	// private
-
 	/**
-	 * An object containing the public properties used for the plugin's default
-	 * settings.
-	 *
-	 * @property _settings
-	 * @type Object
-	 * @private
-	 **/
-	var _settings = {
-		increment       :   200,
-		duration        :   10000,
-		selfdestruct    :   true,
-		onLoad          :   false,
-		onError         :   false,
-	},
+	 * Private methods and objects
+	 */
 
-	/**
-	 * Checks the image.complete property to see if the image had been loaded.
-	 *
-	 * @method _check
-	 * @private
-	 **/
-	_check = function() {
-		// is the image completely loaded
-		if ( get.loaded.call($(this)) ) {
-			// call complete
-			_load.call(this);
-		}
-	},
+	var _private = {
 
-	/**
-	 * The load method executed upon completion of the simple timer. The onLoad
-	 * event fires. The image load plugin is automatically destroyed.
-	 *
-	 * @method _load
-	 * @private
-	 **/
-	_load = function() {
-		// get the loader settings
-		var settings = $(this).data('SimpleImageLoad.settings');
-		// onLoad event
-		if ( settings.onLoad ) {
-			settings.onLoad.call(this);
-		}
-		// destroy image load
-		if ( settings.selfdestruct ) {
-			methods.destroy.call($(this));
-		}
-	},
+		/**
+		 * An object containing the public properties used for the plugin's default
+		 * settings.
+		 *
+		 * @property settings
+		 * @type Object
+		 * @private
+		 **/
+		settings : {
+			increment       :   200,
+			duration        :   10000,
+			selfdestruct    :   true,
+			onLoad          :   false,
+			onError         :   false,
+		},
 
-	/**
-	 * The error method is executed in the event of an image error executed by
-	 * the browser or if the image did not load within the specified duration.
-	 * automatically destroyed.
-	 *
-	 * @method _error
-	 * @private
-	 **/
-	_error = function() {
-		// get the loader settings
-		var settings = $(this).data('SimpleImageLoad.settings');
-		// onError event
-		settings.onError.apply(this);
-		// destroy image load
-		if ( settings.selfdestruct ) {
-			methods.destroy.call($(this));
-		}
+		/**
+		 * Checks the image.complete property to see if the image had been loaded.
+		 *
+		 * @method check
+		 * @private
+		 **/
+		check : function() {
+			// is the image completely loaded
+			if ( get.loaded.call($(this)) ) {
+				// call complete
+				filters._private.call(this, 'load');
+			}
+		},
+
+		/**
+		 * The load method executed upon completion of the simple timer. The onLoad
+		 * event fires. The image load plugin is automatically destroyed.
+		 *
+		 * @method load
+		 * @private
+		 **/
+		load : function( settings ) {
+			// onLoad event
+			if ( settings.onLoad ) {
+				settings.onLoad.call(this);
+			}
+			// destroy image load
+			if ( settings.selfdestruct ) {
+				methods.destroy.call($(this));
+			}
+		},
+
+		/**
+		 * The error method is executed in the event of an image error executed by
+		 * the browser or if the image did not load within the specified duration.
+		 * automatically destroyed.
+		 *
+		 * @method error
+		 * @private
+		 **/
+		error : function() {
+			// onError event
+			if ( settings.onError ) {
+				settings.onError.apply(this);
+			}
+			// destroy image load
+			if ( settings.selfdestruct ) {
+				methods.destroy.call($(this));
+			}
+		},
+
 	},
 
 	/**
@@ -124,6 +128,28 @@
 	 * Filters applied before method calls.
 	 */
 	filters = {
+
+		/**
+		 * A filter applied before all private methods are called. Private
+		 * methods are only called on a single jQuery object.
+		 *
+		 * @method filters.get
+		 * @param {Object} method The get method
+		 * @return {Mixed} The get method if it exists, otherwise false.
+		 **/
+		_private : function( method ) {
+			// get settings
+			var settings = $(this).data('SimpleImageLoad.settings');
+			if ( typeof settings == 'undefined' ) {
+				return false;
+			}
+			// call private method
+			if ( _private[method] ) {
+				return _private[method].call( this, settings );
+			}else {
+				return false;
+			}
+		},
 
 		/**
 		 * A filter applied before the plugin is initialized. The filter checks
@@ -209,7 +235,7 @@
 		 **/
 		defaultSettings : function() {
 			// apply to each element
-			return _settings;
+			return $.extend({}, _private.settings);
 		},
 
 		/**
@@ -267,15 +293,15 @@
 			* provided.
 			*/
 			// simple image load settings
-			var settings = $.extend( true, {}, _settings, options);
+			var settings = $.extend( true, {}, _private.settings, options);
 			// simple timer settings
 			var settingsTimer = helpers.extendOver(
 				$.simpleTimer('getDefaultSettings'),
 				settings);
 			// private timer settings
 			$.extend(settingsTimer, {
-				onIncrement :   _check,
-				onComplete  :   _load,
+				onIncrement :   _private.check,
+				onComplete  :   _private.load,
 			});
 
 			return this.each(function(){
@@ -284,9 +310,9 @@
 				// check periodically via the image.complete property
 				.simpleTimer(settingsTimer).simpleTimer('start');
 				// check via the onLoad event
-				this.onload = _check;
+				this.onload = _private.check;
 				// check for an image error
-				this.onerror = _error;
+				this.onerror = _private.error;
 			});
 		},
 
