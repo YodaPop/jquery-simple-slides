@@ -1159,10 +1159,10 @@
 						// onLoad event
 						$(this).simpleImageLoad({
 							onLoad  :   function() {
-								//wrapper.find('.simpleslides-loader').remove();
+								wrapper.find('.simpleslides-loader').remove();
 							},
 							onError :   function() {
-								//wrapper.find('.simpleslides-loader').remove();
+								wrapper.find('.simpleslides-loader').remove();
 							},
 						});
 					}
