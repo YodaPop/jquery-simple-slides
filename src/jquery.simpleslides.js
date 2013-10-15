@@ -3,7 +3,7 @@
 * @descripton       Turns the elements inside a div into slides with assigned
 *                   transitions, handles image loading, and can act as a
 *                   slideshow.
-* @version          0.2.3
+* @version          0.2.4
 * @requires         Jquery 1.6+
 *                   https://github.com/YodaPop/jquery-simple-timer
 *                   https://github.com/YodaPop/jquery-simple-image-load
@@ -1130,11 +1130,6 @@
 					settings.json = undefined;
 				}
 
-				// check start slide
-				if ( settings.slide >= settings.total || settings.slide < 0 ) {
-					settings.slide = 0;
-				}
-
 				// get loader
 				if ( $('.simpleslides-loader').length > 0 ) {
 					var loader = $('.simpleslides-loader');
@@ -1145,6 +1140,11 @@
 
 				// set total slides
 				settings.total = $(this).children().length;
+
+				// check start slide
+				if ( settings.slide >= settings.total || settings.slide < 0 ) {
+					settings.slide = 0;
+				}
 
 				// stack & wrap children
 				$(this).children().each(function() {
