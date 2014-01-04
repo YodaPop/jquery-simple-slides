@@ -1374,7 +1374,8 @@
 							ssA.getWrapper().removeClass('simpleslides-active');
 							ssB.getWrapper().addClass('simpleslides-active');
 							// play next slide
-							if ( settings.state.getState() === 'play-interval' ) {
+							if ( settings.state.getState() === 'play-interval' )
+							{
 								methods.stop.call(container);
 								methods.play.call(container);
 							}
@@ -1435,7 +1436,7 @@
 			'or "object"');
 	};
 
-	// jQuery object (get functions only)
+	// jQuery object (getters and setters only)
 
 	$.simpleSlides = function( method ) {
 		if ( typeof method === 'string' ) {
