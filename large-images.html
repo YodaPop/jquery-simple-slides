@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.o
+rg/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta http-equiv="cache-control" content="no-cache">
+	<meta http-equiv="pragma" content="no-cache">
+	<meta name="robots" content="none">
+	<meta name="language" content="en" />
+
+<style type="text/css">
+body {
+	background:#1f1f1f;
+}
+img {
+	margin:0;
+}
+#container1, #slide5 {
+	width:1500px;
+	height:750px;
+	margin:auto auto 10px;
+}
+#container1 img {
+	width:1500px;
+	height:750px;
+}
+#controls {
+	width:480px;
+	height:30px;
+	margin:auto auto 10px;
+}
+.slide-div {
+	width:824px;
+	height:122px;
+	background:white;
+	cursor:pointer;
+}
+#trace-log {
+	width:828px;
+	margin:auto;
+	color:red;
+	font-weight:bold;
+}
+#goTo {
+	width:20px;
+}
+.simpleslides-loader {
+	width   :   200px;
+	height  :   200px;
+	top     :   60px;
+	left    :   70px;
+}
+</style>
+
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js">
+	</script>
+	<!-- add json2html; both the core library and the jquery wrapper -->
+	<script type="text/javascript" src="src/json2html.js"></script>
+	<script type="text/javascript" src="src/jquery.json2html.js"></script>
+	<!-- add the simple plugins -->
+	<script src="src/jquery.simpletimer.js" type="text/javascript"></script>
+	<script src="src/jquery.simpleimageload.js" type="text/javascript"></script>
+	<script src="src/jquery.simpleslides.js" type="text/javascript"></script>
+	<!-- add transitions -->
+	<script src="src/transitions.js" type="text/javascript"></script>
+
+	<title>Simple Slides</title>
+
+</head>
+<body>
+
+	<div id="container1">
+	</div>
+	<div id="controls">
+		<input type="button" value="Play" onClick="$('#container1')
+.simpleSlides('play')" />
+		<input type="button" value="Pause" onClick="$('#container1')
+.simpleSlides('pause')" />
+		<input type="button" value="Stop" onClick="$('#container1')
+.simpleSlides('stop')" />
+		<input type="button" value="<<" onClick="$('#container1')
+.simpleSlides('previous')" />
+		<input type="button" value=">>" onClick="$('#container1')
+.simpleSlides('next')" />
+		<input type="button" value="Go To:" onClick="$('#container1')
+.simpleSlides('goTo',$('#goTo').val())" />
+		<input id="goTo" type="text" value="" />
+	</div>
+
+<script type="text/javascript">
+/*<![CDATA[*/
+$('#container1').simpleSlides({
+	duration : 1000,
+	transitions  :   {
+		onDefault   :   {
+			duration            :   1000,
+			animation           :   'fade'
+		},
+		onPrevious   :   {
+			duration            :   1000,
+			animation           :   'slideRight'
+		},
+		onNext   :   {
+			duration            :   1000,
+			animation           :   'slideLeft'
+		},
+		2   :   {
+			duration            :   1000,
+			animation           :   'slideUp'
+		},
+	},
+	json    :   [
+		{
+			src     :   'http://www.gifstache.com/images/ajax_loader.gif',
+			class   :   'simpleslides-loader',
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_12.jpg'
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_11.jpg'
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_10.jpg'
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_9.jpg'
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_8.jpg'
+		},
+		{
+			src :   'http://www.wec.ufl.edu/wgsa/photocontest/i/Landscape_7.jpg'
+		},
+	]
+});
+/*]]>*/
+</script>
+
+</body>
+</html>
