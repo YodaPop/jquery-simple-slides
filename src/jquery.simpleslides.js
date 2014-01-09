@@ -1368,6 +1368,8 @@
 									container   :   container,
 									slideA      :   ssA.getSlide(),
 									slideB      :   ssB.getSlide(),
+									slide       :   slide,
+									total       :   settings.total
 								});
 							}
 							// active class
