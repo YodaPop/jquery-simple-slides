@@ -76,7 +76,7 @@ $.simpleSlides('setTransitions',{
 				( -mv+settings.slideB.outerWidth() ) + 'px')
 			// animate slide A to move out to the right
 			.animate({
-				left: '+=' + mv
+				left: '+=' + settings.container.innerWidth()
 			}, settings.duration);
 		}
 	},
