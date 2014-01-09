@@ -242,23 +242,36 @@
 			// merge settings
 			settings = $.extend({}, this._transitions.
 				getSettings(settings.slide, name), settings);
-			// new Transition
-			var transition = new Transition(settings);
-			// add the transition settings to the queue
-			this._queue.push(transition);
+			// no transitions added
+			if ( this._queue.length === 0 ) {
+				// new Transition
+				var transition = new Transition(settings);
+				// add the transition settings to the queue
+				this._queue.push(transition);
+				return this;
+			}
+			// check transition status
+			if ( this._queue.length > 1 || this._queue[0].isPlaying() ) {
+				// new Transition
+				var transition = new Transition(settings);
+				// add the transition settings to the queue
+				this._queue.push(transition);
+			}else {
+				this._queue[0].update(settings);
+			}
 
 			return this;
 		},
 
 		/**
-		 * Clears the queue of all transitions.
+		 * Clears the queue of all transitions except for the first one.
 		 *
 		 * @method clear
 		 * @return {Object} The Transition object
 		 * @chainable
 		 **/
 		clear : function () {
-			this._queue.length = 0;
+			this._queue.length = 1;
 
 			return this;
 		},
@@ -458,7 +471,7 @@
 		 * @return {Object} The Transition object
 		 * @chainable
 		 **/
-		setAnimation : function( animation ) {
+		_setAnimation : function( animation ) {
 			// Simple Slides settings
 			var settings = ssA.getContainer().data('SimpleSlides.settings');
 			// apply animation to settings
@@ -481,7 +494,7 @@
 			// update the transition animation
 			if ( typeof animation === 'string' ||
 				 typeof animation === 'function' ) {
-				this.setAnimation(options);
+				this._setAnimation(options);
 				return this;
 			}
 			// apply transition settings
@@ -490,13 +503,16 @@
 			var settingsTimer = helpers.extendOver(
 				$.simpleTimer('getDefaultSettings'),
 				this.settings);
-			// update the timer on slide A
-			if ( !this.settings.ssA.getWrapper().
-				 data('SimpleTimer.settings') ) {
-				this.settings.ssA.getWrapper().simpleTimer(settingsTimer);
-			}else {
-				this.settings.ssA.getWrapper().
-					simpleTimer('update', settingsTimer);
+			// check for slide A
+			if ( this.settings.ssA ) {
+				// update the timer on slide A
+				if ( !this.settings.ssA.getWrapper().
+					 data('SimpleTimer.settings') ) {
+					this.settings.ssA.getWrapper().simpleTimer(settingsTimer);
+				}else {
+					this.settings.ssA.getWrapper().
+						simpleTimer('update', settingsTimer);
+				}
 			}
 
 			return this;
@@ -611,6 +627,22 @@
 			this.settings.queue = 1;
 			this.settings.overlay = false;
 			this.settings.callback = false;
+		},
+
+		/**
+		 * Check if the transition is playing
+		 *
+		 * @class Transition
+		 * @method isPlaying
+		 * @return {Boolean} True if the transition is playing, otherwise false.
+		 **/
+		isPlaying : function() {
+			// check if the timer is timing
+			if ( this.settings.ssA ) {
+				return this.settings.ssA.getWrapper().simpleTimer('getTiming');
+			}else {
+				return false;
+			}
 		}
 
 	};
@@ -1368,8 +1400,6 @@
 									container   :   container,
 									slideA      :   ssA.getSlide(),
 									slideB      :   ssB.getSlide(),
-									slide       :   slide,
-									total       :   settings.total
 								});
 							}
 							// active class
