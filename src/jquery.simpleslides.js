@@ -1400,6 +1400,8 @@
 									container   :   container,
 									slideA      :   ssA.getSlide(),
 									slideB      :   ssB.getSlide(),
+									slide       :   settings.slide + 1,
+									total       :   settings.total
 								});
 							}
 							// active class
